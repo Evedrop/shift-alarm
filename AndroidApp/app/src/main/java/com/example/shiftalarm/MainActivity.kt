@@ -557,7 +557,7 @@ fun SettingsSheet(onDismiss: () -> Unit) {
         ) {
             Text("班次时间", fontSize = 18.sp, fontWeight = FontWeight.Bold)
 
-            ShiftKind.entries.filter { !it.isRest }.forEach { kind ->
+            ShiftKind.entries.filter { !plan.shiftDef(it).isRest }.forEach { kind ->
                 val def = plan.shiftDef(kind)
                 AppCard(modifier = Modifier.fillMaxWidth()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
