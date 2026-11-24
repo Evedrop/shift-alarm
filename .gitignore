@@ -1,0 +1,13 @@
+.DS_Store
+Thumbs.db
+
+# XcodeGen 生成物
+*.xcodeproj
+*.xcworkspace
+ShiftAlarm/Info.plist
+
+# 构建产物
+build/
+DerivedData/
+Payload/
+*.ipa

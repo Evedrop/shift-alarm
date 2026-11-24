@@ -1,0 +1,67 @@
+name: Build unsigned IPA
+
+# 没有 Mac 也能出包：GitHub 的 macOS runner 上编译，产出未签名 IPA，
+# 下载到 Windows 用 Sideloadly / AltStore 用你的 Apple ID 签名装到 iPhone。
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - "ShiftAlarm/**"
+      - ".github/workflows/build-ipa.yml"
+
+jobs:
+  build:
+    # Xcode 26 才带 AlarmKit；如果这个 runner 不可用，改成 macos-latest
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 检查 Xcode 与 SDK
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: 安装 XcodeGen
+        run: brew install xcodegen
+
+      - name: 生成 Xcode 工程
+        working-directory: ShiftAlarm
+        run: xcodegen generate
+
+      - name: 编译（不签名）
+        working-directory: ShiftAlarm
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project ShiftAlarm.xcodeproj \
+            -scheme ShiftAlarm \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: 打包成 IPA
+        working-directory: ShiftAlarm
+        run: |
+          APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' | head -n 1)
+          echo "APP: $APP_PATH"
+          if [ -z "$APP_PATH" ]; then echo "没找到 .app，编译可能失败了"; exit 1; fi
+          rm -rf Payload
+          mkdir Payload
+          cp -R "$APP_PATH" Payload/
+          zip -qry ShiftAlarm-unsigned.ipa Payload
+          ls -lh ShiftAlarm-unsigned.ipa
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShiftAlarm-unsigned-ipa
+          path: ShiftAlarm/ShiftAlarm-unsigned.ipa
+          if-no-files-found: error

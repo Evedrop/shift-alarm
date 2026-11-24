@@ -1,0 +1,1363 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="班表闹钟">
+<meta name="theme-color" content="#FF8A00">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>班表闹钟 · 交互原型</title>
+<style>
+/* ============ 基础与主题 ============ */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+:root{
+  --bg:#F2F2F7; --card:#FFFFFF; --card-border:rgba(0,0,0,.045);
+  --text:#0B0B0C; --text2:#6C6C70; --text3:#A9A9AE;
+  --sep:rgba(60,60,67,.10); --press:rgba(0,0,0,.05);
+  --accent:#FF8A00; --accent-ink:#7A3F00; --accent-soft:rgba(255,138,0,.12);
+  --chip-rest:rgba(120,120,128,.16);
+  --seg-bg:rgba(118,118,128,.12); --seg-on:#FFFFFF;
+  --switch-off:rgba(120,120,128,.30);
+  --nav:rgba(249,249,249,.88);
+  --sheet:#FFFFFF;
+  --homebar:rgba(0,0,0,.22);
+  --shadow:0 1px 2px rgba(0,0,0,.05), 0 10px 26px -14px rgba(0,0,0,.22);
+  --ok:#248A3D; --ok-bg:rgba(52,199,89,.14);
+  --warn:#B45309; --warn-bg:rgba(255,159,10,.16);
+  --bad:#C1271D; --bad-bg:rgba(255,69,58,.14);
+}
+[data-theme="dark"]{
+  --bg:#000000; --card:#1C1C1E; --card-border:rgba(255,255,255,.07);
+  --text:#FFFFFF; --text2:#9C9CA3; --text3:#6C6C72;
+  --sep:rgba(255,255,255,.09); --press:rgba(255,255,255,.07);
+  --accent:#FF9F0A; --accent-ink:#FFC46B; --accent-soft:rgba(255,159,10,.16);
+  --chip-rest:rgba(120,120,128,.32);
+  --seg-bg:rgba(118,118,128,.24); --seg-on:#636366;
+  --switch-off:rgba(120,120,128,.44);
+  --nav:rgba(18,18,20,.86);
+  --sheet:#1C1C1E;
+  --homebar:rgba(255,255,255,.32);
+  --shadow:0 1px 0 rgba(255,255,255,.03);
+  --ok:#30D158; --ok-bg:rgba(48,209,88,.16);
+  --warn:#FFB340; --warn-bg:rgba(255,159,10,.18);
+  --bad:#FF6961; --bad-bg:rgba(255,69,58,.18);
+}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  background:#0A0B0F;color:var(--text);overflow:hidden;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:focus{outline:none}
+::-webkit-scrollbar{width:0;height:0}
+
+/* ============ 舞台与机身 ============ */
+.stage{
+  position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  background:
+    radial-gradient(900px 620px at 50% -10%, #1E2333 0%, rgba(30,35,51,0) 62%),
+    radial-gradient(760px 520px at 84% 96%, rgba(255,138,0,.10), rgba(255,138,0,0) 62%),
+    #0A0B0F;
+}
+.phone{
+  width:390px;height:844px;flex:0 0 auto;position:relative;
+  transform-origin:center center;
+  filter:drop-shadow(0 44px 90px rgba(0,0,0,.62));
+}
+.frame{
+  position:absolute;inset:0;border-radius:56px;background:#08080A;
+  box-shadow:
+    inset 0 0 0 1.5px #3E3E44,
+    inset 0 0 0 9px #131316,
+    0 0 0 1px rgba(255,255,255,.05);
+}
+.btn-power{position:absolute;right:-3.5px;top:214px;width:3.5px;height:82px;border-radius:0 3px 3px 0;background:linear-gradient(180deg,#3a3a40,#232326)}
+.btn-vol{position:absolute;left:-3.5px;width:3.5px;border-radius:3px 0 0 3px;background:linear-gradient(180deg,#3a3a40,#232326)}
+.btn-vol.up{top:176px;height:58px}
+.btn-vol.dn{top:244px;height:58px}
+.screen{
+  position:absolute;inset:9px;border-radius:47px;overflow:hidden;
+  background:var(--bg);display:flex;flex-direction:column;
+  transition:background-color .25s ease;
+}
+.island{
+  position:absolute;top:11px;left:50%;transform:translateX(-50%);
+  width:112px;height:32px;border-radius:20px;background:#000;z-index:90;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);
+}
+.statusbar{
+  flex:0 0 auto;height:50px;padding:14px 26px 0 32px;
+  display:flex;align-items:flex-start;justify-content:space-between;
+  font-size:15px;font-weight:600;letter-spacing:.2px;z-index:60;pointer-events:none;
+}
+.statusbar .sicons{display:flex;align-items:center;gap:5px;opacity:.95}
+.statusbar svg{display:block}
+
+/* ============ 内容区 ============ */
+#view{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;padding:0 16px 18px;overscroll-behavior:contain}
+.pagehead{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;padding:0 0 10px}
+.pagehead .eyebrow{font-size:12.5px;font-weight:600;color:var(--text2);letter-spacing:.2px;margin-bottom:2px}
+.pagehead h1{font-size:27px;font-weight:800;letter-spacing:-.6px;line-height:1.15}
+.head-actions{display:flex;align-items:center;gap:8px;padding-bottom:3px}
+.iconbtn{
+  width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+  background:var(--card);box-shadow:var(--shadow);border:1px solid var(--card-border);
+  color:var(--text2);transition:transform .15s ease;
+}
+.iconbtn:active{transform:scale(.9)}
+.pillbtn{
+  height:30px;padding:0 12px;border-radius:15px;font-size:13px;font-weight:600;
+  background:var(--card);box-shadow:var(--shadow);border:1px solid var(--card-border);
+  color:var(--text);transition:transform .15s ease;
+}
+.pillbtn:active{transform:scale(.94)}
+
+/* ============ 下一个闹钟 Hero ============ */
+.hero{
+  position:relative;border-radius:26px;padding:13px 16px 10px;color:#fff;overflow:hidden;
+  background:linear-gradient(158deg,#1B1F2E 0%,#0C0E15 58%,#0A0B11 100%);
+  box-shadow:0 20px 44px -22px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.07);
+  transition:transform .18s ease;isolation:isolate;
+}
+.hero:active{transform:scale(.985)}
+.hero::before{
+  content:'';position:absolute;right:-70px;top:-120px;width:300px;height:300px;z-index:-1;
+  background:radial-gradient(circle,rgba(255,138,0,.42),rgba(255,138,0,0) 66%);
+}
+.hero::after{
+  content:'';position:absolute;left:-40px;bottom:-140px;width:240px;height:240px;z-index:-1;
+  background:radial-gradient(circle,rgba(94,92,230,.28),rgba(94,92,230,0) 68%);
+}
+.hero-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.hero-label{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600;letter-spacing:.4px;color:rgba(255,255,255,.66)}
+.pulse{width:6px;height:6px;border-radius:50%;background:#FF8A00;box-shadow:0 0 0 0 rgba(255,138,0,.6);animation:pulse 2.2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,138,0,.55)}70%{box-shadow:0 0 0 9px rgba(255,138,0,0)}100%{box-shadow:0 0 0 0 rgba(255,138,0,0)}}
+.authchip{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:7px;letter-spacing:.2px;white-space:nowrap}
+.authchip.ok{background:rgba(48,209,88,.16);color:#30D158}
+.authchip.warn{background:rgba(255,159,10,.18);color:#FFB340}
+.authchip.bad{background:rgba(255,69,58,.18);color:#FF6961}
+.authchip.neutral{background:rgba(255,255,255,.10);color:rgba(255,255,255,.72)}
+.hero-time{
+  font-size:39px;font-weight:700;letter-spacing:.5px;line-height:1.06;margin-top:5px;
+  font-variant-numeric:tabular-nums;font-feature-settings:"tnum";
+}
+.hero-sub{font-size:13px;color:rgba(255,255,255,.68);margin-top:3px;letter-spacing:.2px}
+.hero-foot{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin-top:9px;padding-top:9px;border-top:1px solid rgba(255,255,255,.09);
+  font-size:12.5px;color:rgba(255,255,255,.6);
+}
+.hero-foot b{color:#FFB340;font-weight:700;font-variant-numeric:tabular-nums}
+.bellbtn{
+  width:36px;height:36px;border-radius:50%;display:grid;place-items:center;color:#fff;
+  background:radial-gradient(circle at 32% 24%,#FFC46B,#FF8A00 58%,#D96F00);
+  box-shadow:0 8px 22px -6px rgba(255,138,0,.6), inset 0 1px 0 rgba(255,255,255,.45);
+  transition:transform .15s ease;
+}
+.bellbtn:active{transform:scale(.9)}
+.hero.off{background:linear-gradient(158deg,#1B1F2E,#0C0E15)}
+.hero.off .hero-time{font-size:30px;letter-spacing:0;color:rgba(255,255,255,.55)}
+
+/* ============ 日历 ============ */
+.calhead{display:flex;align-items:center;justify-content:space-between;margin:13px 0 2px}
+.calhead .m{font-size:16.5px;font-weight:700;letter-spacing:-.2px}
+.calhead .m span{font-size:12px;font-weight:500;color:var(--text2);margin-left:6px}
+.calnav{display:flex;gap:2px}
+.calnav button{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:var(--text2);transition:background .15s,transform .15s}
+.calnav button:active{background:var(--press);transform:scale(.9)}
+.weekrow{display:grid;grid-template-columns:repeat(7,1fr);padding:6px 0 3px}
+.weekrow span{text-align:center;font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.4px}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);row-gap:1px}
+.day{
+  position:relative;height:50px;display:flex;flex-direction:column;align-items:center;
+  gap:2px;padding-top:2px;border-radius:13px;transition:background .15s,transform .12s;
+}
+.day:active{background:var(--press);transform:scale(.94)}
+.day .num{
+  width:28px;height:28px;display:grid;place-items:center;border-radius:50%;
+  font-size:15px;font-weight:500;letter-spacing:0;font-variant-numeric:tabular-nums;
+}
+.day.out .num{color:var(--text3);opacity:.55}
+.day.today .num{background:var(--accent);color:#1A1206;font-weight:800;box-shadow:0 4px 10px -3px rgba(255,138,0,.6)}
+.day.today .chip{box-shadow:0 0 0 1.5px var(--bg), 0 0 0 3px var(--accent-soft)}
+.chip{
+  font-size:10px;font-weight:700;line-height:1;padding:3px 5px;border-radius:6px;
+  color:#fff;letter-spacing:.3px;white-space:nowrap;
+}
+.chip.rest{background:var(--chip-rest);color:var(--text2)}
+.chip.ovr{outline:1.4px dashed rgba(120,120,128,.75);outline-offset:1px}
+.day.out .chip{opacity:.45}
+.adot{position:absolute;top:2px;right:7px;width:5px;height:5px;border-radius:50%;background:var(--accent)}
+.legend{display:flex;align-items:center;gap:12px;padding:10px 2px 2px;flex-wrap:wrap}
+.legend span{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);font-weight:500}
+.legend i{width:7px;height:7px;border-radius:2.5px}
+.legend .lg-hint{margin-left:auto;font-size:10.5px;color:var(--text3)}
+.cosm{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.cosm-b{display:flex;align-items:baseline;gap:5px}
+.cosm-b i{width:6px;height:6px;border-radius:2px;display:inline-block}
+.cosm-b span{font-size:10.5px;font-weight:600;color:var(--text2);letter-spacing:.2px}
+.cosm-b b{font-size:17px;font-weight:750;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+
+/* ============ 卡片与统计 ============ */
+.sec-title{
+  display:flex;align-items:baseline;justify-content:space-between;
+  font-size:12.5px;font-weight:600;color:var(--text2);margin:18px 0 7px;padding:0 4px;letter-spacing:.2px;
+}
+.sec-title span{font-weight:500;color:var(--text3);font-size:11.5px}
+.card{
+  background:var(--card);border-radius:19px;padding:13px 15px;
+  box-shadow:var(--shadow);border:1px solid var(--card-border);
+  transition:background-color .25s ease;
+}
+.stats{padding:14px 15px 12px}
+.statrow{display:flex;gap:6px}
+.stat{flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.stat b{font-size:21px;font-weight:750;letter-spacing:-.5px;font-variant-numeric:tabular-nums;line-height:1.1}
+.stat span{font-size:10.5px;color:var(--text2);font-weight:500}
+.c-morning{color:#FF9F0A}.c-afternoon{color:#0A84FF}.c-night{color:#BF5AF2}.c-study{color:#0E8A9E}.c-rest{color:var(--text2)}
+.ratio{height:7px;border-radius:4px;background:var(--seg-bg);margin:12px 0 9px;display:flex;overflow:hidden}
+.ratio i{height:100%;display:block}
+.statfoot{display:flex;justify-content:space-between;font-size:11px;color:var(--text2)}
+.statfoot b{color:var(--text);font-weight:650}
+
+/* ============ 规律页 ============ */
+.cyclerow{display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin-top:10px}
+.cyclerow .cchip{min-width:26px;height:26px;padding:0 5px;border-radius:8px;font-size:11px}
+.cyclerow.dense .cchip{min-width:24px;height:24px;padding:0 3px;border-radius:7px;font-size:10.5px}
+.cyclerow.dense{gap:3px}
+.cchip{
+  min-width:29px;height:29px;padding:0 7px;border-radius:9px;display:inline-grid;place-items:center;
+  font-size:12px;font-weight:800;color:#fff;letter-spacing:.3px;
+}
+.cchip.rest{background:var(--chip-rest)!important;color:var(--text2)}
+.carrow{font-style:normal;color:var(--text3);font-size:9px;font-weight:700;margin:0 -1px}
+.cyclemeta{display:flex;gap:10px;margin-top:11px;padding-top:10px;border-top:1px solid var(--sep);font-size:11.5px;color:var(--text2)}
+.cyclemeta b{color:var(--text);font-weight:650}
+.linkbtn{font-size:11.5px;font-weight:650;color:var(--accent-ink);margin-left:auto;letter-spacing:.1px}
+.linkbtn:active{opacity:.6}
+.strip{display:grid;grid-template-columns:repeat(14,1fr);gap:3px;margin-top:5px}
+.striplabel{font-size:10px;color:var(--text3);margin-top:12px;letter-spacing:.3px;font-weight:500}
+.strip .s{display:flex;flex-direction:column;align-items:center;gap:3px}
+.strip .s span{font-size:9px;color:var(--text3);font-weight:600}
+.strip .s i{display:block;width:100%;height:18px;border-radius:5px}
+.presets{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.preset{
+  text-align:left;background:var(--card);border:1.5px solid var(--card-border);border-radius:16px;
+  padding:11px 12px;box-shadow:var(--shadow);transition:transform .15s,border-color .2s,background .2s;
+}
+.preset:active{transform:scale(.97)}
+.preset b{display:block;font-size:14px;font-weight:700;letter-spacing:-.2px}
+.preset .dots{display:flex;gap:2.5px;margin-top:8px}
+.preset .dots i{height:6px;flex:1;border-radius:2px;display:block}
+.preset.on{border-color:var(--accent);background:var(--accent-soft)}
+.preset.on b{color:var(--accent-ink)}
+.pbadge{font-style:normal;font-size:9px;font-weight:700;color:var(--text3);background:var(--seg-bg);border-radius:5px;padding:1px 4px;margin-left:5px;vertical-align:1.5px;letter-spacing:.2px}
+.preset.on .pbadge{background:rgba(255,138,0,.18);color:var(--accent-ink)}
+.cycle-row{display:flex;align-items:center;gap:9px;padding:7px 0}
+.cycle-row + .cycle-row{border-top:1px solid var(--sep)}
+.cday{width:46px;flex:0 0 auto;font-size:11.5px;font-weight:600;color:var(--text2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.del{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:var(--text3);flex:0 0 auto;background:var(--seg-bg)}
+.del:active{transform:scale(.88)}
+.addcycle{
+  width:100%;height:38px;margin-top:8px;border-radius:12px;font-size:13px;font-weight:600;
+  color:var(--accent-ink);background:var(--accent-soft);
+}
+.addcycle:active{transform:scale(.985)}
+.rowline{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px}
+.rowline + .rowline{border-top:1px solid var(--sep)}
+.rowline .lb{font-size:14px;font-weight:500}
+.rowline .vl{font-size:13px;color:var(--text2);font-variant-numeric:tabular-nums}
+.stepper{display:flex;align-items:center;gap:2px;background:var(--seg-bg);border-radius:10px;padding:2px}
+.stepper button{width:30px;height:28px;border-radius:8px;display:grid;place-items:center;color:var(--text);font-size:15px;font-weight:600}
+.stepper button:active{background:var(--seg-on)}
+.stepper b{min-width:66px;text-align:center;font-size:13px;font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:.2px}
+.footnote{font-size:11px;color:var(--text3);line-height:1.6;margin:14px 4px 0}
+
+/* ============ 班组页 ============ */
+.weeknav{display:flex;align-items:center;justify-content:space-between;margin:2px 0 10px}
+.weeknav .lb{font-size:13.5px;font-weight:650;letter-spacing:-.2px;font-variant-numeric:tabular-nums}
+.weeknav .nav{display:flex;align-items:center;gap:6px}
+.weeknav .iconbtn{width:30px;height:30px}
+.weeknav .iconbtn:active{transform:scale(.9)}
+.matrix{background:var(--card);border-radius:20px;padding:12px 11px 11px;box-shadow:var(--shadow);border:1px solid var(--card-border)}
+.mgrid{display:grid;grid-template-columns:40px repeat(7,1fr);gap:5px 3px;align-items:center}
+.mhead{text-align:center;font-size:9.5px;font-weight:600;color:var(--text3);line-height:1.2;letter-spacing:.1px}
+.mhead b{display:block;font-size:12.5px;color:var(--text);font-weight:650;font-variant-numeric:tabular-nums;margin-top:1px;padding:1px 0;border-radius:6px}
+.mhead.today b{color:#1A1206;background:var(--accent)}
+.mcrew{height:34px;display:flex;align-items:center;justify-content:center;border-radius:9px;font-size:11px;font-weight:650;color:var(--text2);transition:background .15s,transform .12s;letter-spacing:.2px}
+.mcrew.me{background:var(--accent-soft);color:var(--accent-ink);box-shadow:inset 0 0 0 1px rgba(255,138,0,.35)}
+.mcrew:active{transform:scale(.92)}
+.mcell{height:34px;border-radius:9px;display:grid;place-items:center;font-size:11.5px;font-weight:700;color:#fff;letter-spacing:.3px}
+.mcell.rest{background:var(--chip-rest);color:var(--text2);font-weight:600}
+.mlegend{display:flex;align-items:center;gap:9px;margin-top:12px;padding-top:10px;border-top:1px solid var(--sep);font-size:10.5px;color:var(--text2);flex-wrap:wrap}
+.mlegend i{width:6px;height:6px;border-radius:2px;display:inline-block;margin-right:3px}
+.mlegend .hintx{margin-left:auto;color:var(--text3)}
+.emptystate{padding:24px 16px 20px;text-align:center}
+.emptystate b{display:block;font-size:15px;margin-bottom:6px;letter-spacing:-.2px}
+.emptystate span{display:block;font-size:12px;color:var(--text2);line-height:1.55;margin-bottom:16px}
+/* 班组改名 */
+.namerow{display:flex;align-items:center;gap:10px;padding:7px 0}
+.namerow + .namerow{border-top:1px solid var(--sep)}
+.nidx{width:14px;flex:0 0 auto;font-size:11px;font-weight:700;color:var(--text3);font-variant-numeric:tabular-nums}
+.nameinput{
+  flex:1;min-width:0;border:0;outline:none;font:inherit;font-size:15px;font-weight:650;letter-spacing:-.1px;
+  color:var(--text);background:var(--seg-bg);border-radius:11px;padding:9px 12px;transition:box-shadow .18s;
+}
+.nameinput::placeholder{color:var(--text3);font-weight:400}
+.nameinput:focus{box-shadow:inset 0 0 0 1.5px var(--accent);background:var(--card)}
+.textbtn.neutral{color:var(--accent-ink)}
+
+/* ============ 闹钟页 ============ */
+.bigcard{padding:15px 16px 13px;background:linear-gradient(158deg,#1B1F2E,#0C0E15);color:#fff;border:0;position:relative;overflow:hidden;box-shadow:0 20px 44px -22px rgba(0,0,0,.6)}
+.bigcard::before{content:'';position:absolute;right:-60px;top:-90px;width:240px;height:240px;background:radial-gradient(circle,rgba(255,138,0,.35),rgba(255,138,0,0) 66%)}
+.bigcard.off{background:linear-gradient(158deg,#22242C,#16171C)}
+.bigcard.off .bigtime{color:rgba(255,255,255,.42)}
+.bigtop{display:flex;align-items:center;justify-content:space-between;position:relative;z-index:1}
+.bigtop span{font-size:12px;font-weight:600;color:rgba(255,255,255,.62);letter-spacing:.4px}
+.bigtime{font-size:52px;font-weight:700;letter-spacing:.5px;line-height:1.06;margin-top:8px;font-variant-numeric:tabular-nums;position:relative;z-index:1}
+.bigsub{font-size:13px;color:rgba(255,255,255,.66);margin-top:2px;position:relative;z-index:1}
+.bigfoot{
+  display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:10px;
+  border-top:1px solid rgba(255,255,255,.1);font-size:12.5px;color:rgba(255,255,255,.62);position:relative;z-index:1;
+}
+.bigfoot b{color:#FFB340;font-weight:700;font-variant-numeric:tabular-nums}
+.bigfoot button{font-size:12.5px;font-weight:650;color:#FFB340}
+.authcard{display:flex;align-items:center;gap:11px;margin-top:10px}
+.auth-ic{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;flex:0 0 auto}
+.authcard.granted .auth-ic{background:var(--ok-bg);color:var(--ok)}
+.authcard.unknown .auth-ic{background:var(--warn-bg);color:var(--warn)}
+.authcard.denied .auth-ic{background:var(--bad-bg);color:var(--bad)}
+.auth-txt{flex:1;min-width:0}
+.auth-txt b{display:block;font-size:13.5px;font-weight:650;letter-spacing:-.1px}
+.auth-txt span{display:block;font-size:11.5px;color:var(--text2);margin-top:2px;line-height:1.35}
+.mini-btn{
+  height:30px;padding:0 13px;border-radius:15px;font-size:12.5px;font-weight:650;flex:0 0 auto;
+  background:var(--accent);color:#1A1206;
+}
+.mini-btn:active{transform:scale(.95)}
+.mini-btn.ghost{background:var(--seg-bg);color:var(--text)}
+.alist{padding:0 15px}
+.arow{display:flex;align-items:center;gap:12px;padding:11px 0;min-height:60px}
+.arow + .arow{border-top:1px solid var(--sep)}
+.atime{font-size:19px;font-weight:650;letter-spacing:-.3px;font-variant-numeric:tabular-nums;min-width:62px}
+.ameta{flex:1;min-width:0}
+.ameta b{display:block;font-size:13px;font-weight:600;letter-spacing:-.1px}
+.ameta span{display:block;font-size:11.5px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cdot{width:6px;height:6px;border-radius:2px;display:inline-block;margin-right:4px;vertical-align:1px}
+.empty{padding:26px 10px;text-align:center}
+.empty b{display:block;font-size:14px;margin-bottom:4px}
+.empty span{font-size:12px;color:var(--text2);line-height:1.5}
+
+/* ============ 开关 ============ */
+.switch{
+  width:48px;height:29px;border-radius:15px;background:var(--switch-off);position:relative;
+  flex:0 0 auto;transition:background .22s ease;
+}
+.switch::after{
+  content:'';position:absolute;top:3px;left:3px;width:23px;height:23px;border-radius:50%;background:#fff;
+  box-shadow:0 2px 5px rgba(0,0,0,.22);transition:transform .22s cubic-bezier(.3,1.3,.5,1);
+}
+.switch.on{background:#34C759}
+.switch.on::after{transform:translateX(19px)}
+.switch.disabled{opacity:.4;pointer-events:none}
+[data-theme="dark"] .switch.on{background:#30D158}
+
+/* ============ 分段控件 ============ */
+.seg{display:flex;gap:2px;background:var(--seg-bg);padding:3px;border-radius:11px}
+.seg button{
+  flex:1;height:30px;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--text2);
+  transition:background .18s,color .18s,box-shadow .18s;letter-spacing:.1px;
+}
+.seg button.on{background:var(--seg-on);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.14)}
+.seg.seg4 button{font-size:12px}
+
+/* ============ 底部标签栏 ============ */
+.tabbar{
+  flex:0 0 auto;position:relative;display:flex;height:78px;padding-top:7px;
+  background:var(--nav);backdrop-filter:blur(26px) saturate(180%);-webkit-backdrop-filter:blur(26px) saturate(180%);
+  border-top:.5px solid var(--sep);z-index:30;transition:background-color .25s ease;
+}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--text3);transition:color .18s}
+.tab svg{transition:transform .2s cubic-bezier(.3,1.3,.5,1)}
+.tab span{font-size:10px;font-weight:600;letter-spacing:.2px}
+.tab.on{color:var(--accent)}
+.tab.on svg{transform:translateY(-1px) scale(1.06)}
+.tab:active{opacity:.6}
+.homebar{position:absolute;bottom:7px;left:50%;transform:translateX(-50%);width:132px;height:5px;border-radius:3px;background:var(--homebar)}
+
+/* ============ 浮层 ============ */
+#layers{position:absolute;inset:0;pointer-events:none;z-index:70}
+#layers > *{pointer-events:auto}
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.42);animation:fade .22s ease both}
+.scrim.soft{background:rgba(0,0,0,.3);backdrop-filter:blur(2px)}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.sheet{
+  position:absolute;left:0;right:0;bottom:0;max-height:84%;display:flex;flex-direction:column;
+  background:var(--sheet);border-radius:28px 28px 0 0;z-index:2;
+  box-shadow:0 -24px 60px rgba(0,0,0,.32);
+  animation:sheetIn .36s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes sheetIn{from{transform:translateY(102%)}to{transform:translateY(0)}}
+.grabber{width:36px;height:5px;border-radius:3px;background:var(--switch-off);margin:9px auto 2px;flex:0 0 auto}
+.sheet-body{overflow-y:auto;padding:8px 18px 34px;overscroll-behavior:contain}
+.sheet-body .sec-title{margin:14px 0 7px}
+.sheet-body .btn{margin-top:10px}
+.sheet-title{font-size:21px;font-weight:760;letter-spacing:-.5px;text-align:center;margin-bottom:3px}
+.sheet-title .wk{font-size:13px;font-weight:500;color:var(--text2);margin-left:5px;letter-spacing:0}
+.sheet-sub{font-size:12px;color:var(--text2);text-align:center;margin-bottom:4px}
+
+.list{padding:0 15px}
+.drow{display:flex;align-items:center;justify-content:space-between;min-height:46px;font-size:13.5px}
+.drow + .drow{border-top:1px solid var(--sep)}
+.drow span{color:var(--text2)}
+.drow b{font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:.2px}
+.rowcard{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px}
+.rowcard b{display:block;font-size:13.5px;font-weight:650}
+.rowcard span{display:block;font-size:11.5px;color:var(--text2);margin-top:2px}
+.textbtn{width:100%;height:40px;margin-top:10px;font-size:13px;font-weight:600;color:var(--bad)}
+.btn{width:100%;height:48px;border-radius:14px;font-size:15px;font-weight:700;margin-top:14px;letter-spacing:.2px}
+.btn.primary{background:var(--accent);color:#1A1206;box-shadow:0 12px 26px -14px rgba(255,138,0,.85)}
+.btn.primary:active{transform:scale(.985)}
+
+/* 班次设置 */
+.srow{border-bottom:1px solid var(--sep)}
+.srow:last-child{border-bottom:0}
+.srow-main{display:flex;align-items:center;gap:10px;min-height:56px;width:100%;text-align:left}
+.sdot{width:9px;height:9px;border-radius:3px;flex:0 0 auto}
+.srow-main div{flex:1;min-width:0}
+.srow-main b{display:block;font-size:13.5px;font-weight:650}
+.srow-main span{display:block;font-size:11.5px;color:var(--text2);margin-top:2px;font-variant-numeric:tabular-nums}
+.chev{color:var(--text3);transition:transform .22s ease;flex:0 0 auto}
+.chev.open{transform:rotate(90deg)}
+.srow-panel{padding:2px 0 12px 19px;display:flex;flex-direction:column;gap:8px}
+.minirow{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;color:var(--text2)}
+
+/* 系统权限弹窗 */
+.alert{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:270px;z-index:3;
+  border-radius:15px;overflow:hidden;text-align:center;
+  background:rgba(250,250,252,.92);backdrop-filter:blur(24px) saturate(180%);
+  box-shadow:0 24px 60px rgba(0,0,0,.4);
+  animation:alertIn .26s cubic-bezier(.2,1.2,.4,1) both;
+}
+[data-theme="dark"] .alert{background:rgba(44,44,46,.94)}
+@keyframes alertIn{from{opacity:0;transform:translate(-50%,-50%) scale(.88)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+.alert-body{padding:19px 17px 16px}
+.alert h3{font-size:16px;font-weight:700;letter-spacing:-.3px;line-height:1.3;margin-bottom:6px}
+.alert p{font-size:12.5px;line-height:1.45;color:#3C3C43}
+[data-theme="dark"] .alert p{color:#C7C7CC}
+.alert-actions{display:flex;border-top:.6px solid rgba(60,60,67,.18)}
+[data-theme="dark"] .alert-actions{border-color:rgba(255,255,255,.14)}
+.alert-btn{flex:1;height:44px;font-size:16.5px;color:#0A84FF;font-weight:400}
+.alert-btn + .alert-btn{border-left:.6px solid rgba(60,60,67,.18)}
+[data-theme="dark"] .alert-btn + .alert-btn{border-color:rgba(255,255,255,.14)}
+.alert-btn.bold{font-weight:650}
+.alert-btn:active{background:rgba(120,120,128,.14)}
+
+/* 响铃全屏 */
+.alarm{position:absolute;inset:0;z-index:4;background:#07070A;overflow:hidden;animation:fade .3s ease both}
+.alarm-glow{position:absolute;left:50%;top:34%;width:560px;height:560px;transform:translate(-50%,-50%);
+  background:radial-gradient(circle,rgba(255,138,0,.30),rgba(255,138,0,.06) 46%,rgba(255,138,0,0) 68%)}
+.ring{position:absolute;left:50%;top:34%;width:190px;height:190px;margin:-95px 0 0 -95px;border-radius:50%;
+  border:1.5px solid rgba(255,160,60,.5);animation:ring 3.4s ease-out infinite}
+.ring:nth-child(2){animation-delay:1.1s}
+.ring:nth-child(3){animation-delay:2.2s}
+@keyframes ring{0%{transform:scale(.45);opacity:0}18%{opacity:.85}100%{transform:scale(2.15);opacity:0}}
+.alarm-content{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;color:#fff;padding:0 26px}
+.alarm-shift{margin-top:104px;font-size:13px;font-weight:600;letter-spacing:.5px;color:rgba(255,255,255,.66)}
+.alarm-time{font-size:74px;font-weight:750;letter-spacing:-1px;line-height:1.05;margin-top:8px;font-variant-numeric:tabular-nums;text-shadow:0 10px 40px rgba(255,138,0,.35)}
+.alarm-note{font-size:13px;color:rgba(255,255,255,.55);margin-top:2px}
+.alarm-bell{margin-top:26px;width:74px;height:74px;border-radius:50%;display:grid;place-items:center;
+  background:radial-gradient(circle at 32% 24%,#FFC46B,#FF8A00 58%,#C96500);
+  box-shadow:0 16px 44px -8px rgba(255,138,0,.75), inset 0 2px 0 rgba(255,255,255,.45);
+  animation:shake 1.5s ease-in-out infinite;color:#2A1600}
+@keyframes shake{0%,100%{transform:rotate(-6deg) scale(1)}50%{transform:rotate(6deg) scale(1.04)}}
+.alarm-spacer{flex:1}
+.alarm-stop{align-self:stretch;height:62px;border-radius:31px;font-size:19px;font-weight:700;color:#1A1206;
+  background:linear-gradient(180deg,#FFD08A,#FF9F1C);box-shadow:0 16px 40px -12px rgba(255,159,28,.8), inset 0 1px 0 rgba(255,255,255,.6)}
+.alarm-stop:active{transform:scale(.98)}
+.alarm-snooze{margin-top:12px;font-size:15px;font-weight:600;color:rgba(255,255,255,.8);height:40px}
+.alarm-foot{font-size:11px;color:rgba(255,255,255,.35);margin:6px 0 30px;letter-spacing:.3px}
+
+/* Toast */
+.toast{
+  position:absolute;left:50%;bottom:96px;transform:translate(-50%,14px);z-index:120;
+  max-width:82%;padding:10px 16px;border-radius:16px;font-size:12.5px;font-weight:600;letter-spacing:.1px;
+  background:rgba(28,28,30,.92);color:#fff;backdrop-filter:blur(16px);
+  box-shadow:0 12px 30px rgba(0,0,0,.35);opacity:0;pointer-events:none;
+  transition:opacity .22s ease,transform .28s cubic-bezier(.2,1.2,.4,1);text-align:center;
+}
+[data-theme="dark"] .toast{background:rgba(72,72,78,.94)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* 页脚说明 */
+.hint{position:fixed;left:0;right:0;bottom:14px;text-align:center;font-size:11.5px;color:#5C6070;letter-spacing:.3px;pointer-events:none}
+.hint b{color:#8A90A3;font-weight:600}
+.no-anim *,.no-anim *::before,.no-anim *::after{animation:none!important;transition:none!important}
+
+/* ============ 真机全屏模式（iPhone 浏览器 / 添加到主屏幕） ============ */
+body.fullscreen .stage{display:block;background:var(--bg)}
+body.fullscreen .phone{width:100vw;height:100dvh;transform:none!important;filter:none}
+body.fullscreen .frame{inset:0;border-radius:0;background:var(--bg);box-shadow:none}
+body.fullscreen .screen{inset:0;border-radius:0}
+body.fullscreen .island,
+body.fullscreen .hint,
+body.fullscreen .homebar,
+body.fullscreen .btn-power,
+body.fullscreen .btn-vol,
+body.fullscreen .statusbar > *{display:none!important}
+body.fullscreen .statusbar{height:env(safe-area-inset-top,0px);padding:0}
+body.fullscreen .tabbar{height:calc(62px + env(safe-area-inset-bottom,0px));padding-top:9px}
+body.fullscreen #view{padding-left:16px;padding-right:16px}
+body.fullscreen .sheet{padding-bottom:env(safe-area-inset-bottom,0px)}
+body.fullscreen .toast{bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="phone" id="phone">
+    <div class="frame">
+      <i class="btn-power"></i><i class="btn-vol up"></i><i class="btn-vol dn"></i>
+      <div class="screen">
+        <div class="island"></div>
+        <div class="statusbar">
+          <span id="clock">21:12</span>
+          <span class="sicons">
+            <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7.5" width="3" height="3.5" rx="1"/><rect x="4.4" y="5.4" width="3" height="5.6" rx="1"/><rect x="8.8" y="3" width="3" height="8" rx="1"/><rect x="13.2" y="0.5" width="3" height="10.5" rx="1"/></svg>
+            <svg width="16" height="11" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M1.4 4.2a9.5 9.5 0 0 1 13.2 0"/><path d="M3.8 6.8a6 6 0 0 1 8.4 0"/><path d="M6.2 9.3a2.7 2.7 0 0 1 3.6 0"/></svg>
+            <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x=".6" y=".6" width="20" height="10.8" rx="3.2" stroke="currentColor" stroke-opacity=".45" stroke-width="1.1"/><rect x="2.3" y="2.3" width="14.5" height="7.4" rx="1.9" fill="currentColor"/><path d="M22.4 4.2v3.6c1.1-.3 1.6-1 1.6-1.8s-.5-1.5-1.6-1.8z" fill="currentColor" fill-opacity=".45"/></svg>
+          </span>
+        </div>
+        <main id="view"></main>
+        <nav id="tabbar" class="tabbar"></nav>
+        <div id="layers"></div>
+        <div class="toast" id="toast"></div>
+      </div>
+    </div>
+  </div>
+  <p class="hint">交互原型 · 点击日期改班次 / 换规律 / 开关闹钟 &nbsp;|&nbsp; <b>非真实系统闹钟</b></p>
+</div>
+
+<script>
+/* ============================================================
+   班表闹钟 · 交互原型
+   目标形态：SwiftUI + SwiftData + AlarmKit(iOS 26)
+   本文件只用于确认交互与视觉，不含真实调度
+   ============================================================ */
+const WEEK = ['日','一','二','三','四','五','六'];
+const WEEK_FULL = ['周日','周一','周二','周三','周四','周五','周六'];
+const CREW_DEFAULTS = ['甲班','乙班','丙班','丁班','戊班','己班','庚班','辛班'];
+const NOW = new Date();
+const pad = n => String(n).padStart(2,'0');
+const iso = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const fromISO = s => { const p = s.split('-').map(Number); return new Date(p[0], p[1]-1, p[2]); };
+const addDays = (d,n) => { const x = new Date(d.getFullYear(),d.getMonth(),d.getDate()); x.setDate(x.getDate()+n); return x; };
+const diffDays = (a,b) => {
+  const A = new Date(a.getFullYear(),a.getMonth(),a.getDate());
+  const B = new Date(b.getFullYear(),b.getMonth(),b.getDate());
+  return Math.round((A-B)/86400000);
+};
+const weekCN = d => '周'+WEEK[d.getDay()];
+const fmtMin = m => { m = ((Math.round(m)%1440)+1440)%1440; return pad(Math.floor(m/60))+':'+pad(m%60); };
+const mdText = d => (d.getMonth()+1)+'月'+d.getDate()+'日';
+
+/* ---------- 班次定义 ---------- */
+const SHIFT_KEYS = ['morning','afternoon','night','study','rest'];
+function baseShifts(){
+  return {
+    morning:  {key:'morning',  name:'早班', short:'早', startMin:8*60,  hours:8, lead:30, color:'#FF9F0A', enabled:true, rest:false},
+    afternoon:{key:'afternoon',name:'中班', short:'中', startMin:16*60, hours:8, lead:30, color:'#0A84FF', enabled:true, rest:false},
+    night:    {key:'night',    name:'夜班', short:'夜', startMin:0,     hours:8, lead:45, color:'#BF5AF2', enabled:true, rest:false},
+    study:    {key:'study',    name:'学习', short:'学', startMin:9*60,  hours:8, lead:30, color:'#0E8A9E', enabled:true, rest:false},
+    rest:     {key:'rest',     name:'休息', short:'休', startMin:0,     hours:0, lead:0,  color:'#D1D1D6', enabled:false,rest:true}
+  };
+}
+const PRESETS = [
+  {name:'五班三倒', pattern:['study','morning','morning','afternoon','afternoon','rest','night','night','rest','rest'], crews:5},
+  {name:'做二休二', pattern:['morning','morning','rest','rest'], crews:1},
+  {name:'做一休一', pattern:['morning','rest'], crews:1},
+  {name:'做五休二', pattern:['morning','morning','morning','morning','morning','rest','rest'], crews:1},
+  {name:'四班三倒', pattern:['morning','morning','afternoon','afternoon','night','night','rest','rest'], crews:4},
+  {name:'白夜休休', pattern:['morning','night','rest','rest'], crews:1},
+  {name:'三班轮转', pattern:['morning','morning','afternoon','afternoon','night','night','rest'], crews:1}
+];
+
+/* ---------- 状态 ---------- */
+const state = {
+  view:'calendar',
+  cursor:new Date(NOW.getFullYear(), NOW.getMonth(), 1),
+  panel:null,          // day | settings | auth
+  dayDate:null,
+  beep:false,
+  auth:'unknown',      // unknown | granted | denied
+  theme:'system',
+  master:true,
+  expandShift:null,
+  shifts:baseShifts(),
+  pattern:['study','morning','morning','afternoon','afternoon','rest','night','night','rest','rest'],
+  crews:5,             // 班组数，1 = 单人排班
+  crewIndex:0,         // 我所在的班组
+  crewNames:CREW_DEFAULTS.slice(),  // 班组名称（可改）
+  crewWeek:null,       // 班组视图当前周（周一）
+  anchor:iso(mondayOf(NOW)),
+  overrides:{},        // 'YYYY-MM-DD' -> shiftKey
+  alarmOff:{}          // 'YYYY-MM-DD' -> true
+};
+
+/* ---------- 排班计算 ---------- */
+function crewStride(){
+  return state.crews > 1 ? state.pattern.length / state.crews : 0;
+}
+function validateCrews(){
+  if(state.crews > 1 && (state.pattern.length % state.crews !== 0 || state.crews > state.pattern.length)){
+    state.crews = 1;
+    state.crewIndex = 0;
+  }
+  if(state.crewIndex >= state.crews) state.crewIndex = 0;
+}
+function crewLabel(i){
+  return state.crewNames[i] || CREW_DEFAULTS[i] || (i+1)+'班';
+}
+function defaultCrewName(i){ return CREW_DEFAULTS[i] || (i+1)+'班'; }
+function normalizeCrewNames(){
+  for(let i=0;i<state.crews;i++){
+    const v = (state.crewNames[i] || '').trim();
+    state.crewNames[i] = v || defaultCrewName(i);
+  }
+}
+function shiftKeyFor(date, crewIdx){
+  const k = (crewIdx === undefined) ? state.crewIndex : crewIdx;
+  const key = iso(date);
+  if(k === state.crewIndex && state.overrides[key]) return state.overrides[key];
+  return baseShiftKeyFor(date, k);
+}
+function baseShiftKeyFor(date, crewIdx){
+  const len = state.pattern.length;
+  const k = (crewIdx === undefined) ? state.crewIndex : crewIdx;
+  const n = diffDays(date, fromISO(state.anchor)) + k * crewStride();
+  const i = ((n % len) + len) % len;
+  return state.pattern[i];
+}
+function mondayOf(d){
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return addDays(x, -((x.getDay() + 6) % 7));
+}
+function patternName(){
+  const p = state.pattern;
+  const hit = PRESETS.find(x => x.pattern.length===p.length && x.pattern.every((k,i)=>k===p[i]));
+  return hit ? hit.name : '自定义 '+p.length+' 天循环';
+}
+/** 某天的闹钟（可能落在前一天晚上） */
+function alarmForDate(date){
+  if(!state.master) return null;
+  const dateKey = iso(date);
+  if(state.alarmOff[dateKey]) return null;
+  const sk = shiftKeyFor(date);
+  const s = state.shifts[sk];
+  if(!s || s.rest || !s.enabled) return null;
+  let m = s.startMin - s.lead;
+  let dayOffset = 0;
+  while(m < 0){ m += 1440; dayOffset -= 1; }
+  while(m >= 1440){ m -= 1440; dayOffset += 1; }
+  const when = addDays(date, dayOffset);
+  when.setMinutes(m);
+  return { shiftDate:dateKey, shiftKey:sk, dayOffset, minutes:m, when };
+}
+function upcoming(n){
+  const list = [];
+  for(let i=-1;i<22;i++){
+    const d = addDays(NOW,i);
+    const a = alarmForDate(d);
+    if(!a) continue;
+    if(a.when.getTime() <= Date.now()) continue;
+    list.push(a);
+  }
+  list.sort((x,y)=>x.when-y.when);
+  return list.slice(0, n||8);
+}
+function countdownText(t){
+  const ms = t.getTime() - Date.now();
+  if(ms <= 0) return '已到时间';
+  const mins = Math.floor(ms/60000);
+  const d = Math.floor(mins/1440), h = Math.floor((mins%1440)/60), m = mins%60;
+  if(d > 0) return d+' 天 '+h+' 小时';
+  if(h > 0) return h+' 小时 '+m+' 分';
+  if(m > 0) return m+' 分钟';
+  return '不到 1 分钟';
+}
+function whenText(d){
+  const n = diffDays(d, NOW);
+  if(n === 0) return '今天';
+  if(n === 1) return '明天';
+  if(n === 2) return '后天';
+  return mdText(d);
+}
+function authLabel(){
+  if(state.auth === 'granted') return {cls:'ok', text:'系统闹钟 · 已就绪'};
+  if(state.auth === 'denied')  return {cls:'bad', text:'系统闹钟 · 已拒绝'};
+  return {cls:'neutral', text:'系统闹钟 · 待授权'};
+}
+function shiftRange(s){
+  if(!s || s.rest) return '—';
+  return fmtMin(s.startMin)+' – '+fmtMin(s.startMin + s.hours*60);
+}
+function nextAlarm(){ return upcoming(1)[0] || null; }
+
+/* ---------- 图标 ---------- */
+function ic(name, size){
+  const s = size || 22;
+  const paths = {
+    calendar:'<rect x="3.5" y="5" width="17" height="15.5" rx="3.6"/><path d="M3.5 9.6h17M8 3.2v3.6M16 3.2v3.6"/>',
+    grid:'<rect x="3.6" y="3.6" width="7.4" height="7.4" rx="2.2"/><rect x="13" y="3.6" width="7.4" height="7.4" rx="2.2"/><rect x="3.6" y="13" width="7.4" height="7.4" rx="2.2"/><rect x="13" y="13" width="7.4" height="7.4" rx="2.2"/>',
+    repeat:'<path d="M3.4 11.6A8.6 8.6 0 0 1 18 6.2l2.6 2.2"/><path d="M20.6 3.4v5h-5"/><path d="M20.6 12.4A8.6 8.6 0 0 1 6 17.8l-2.6-2.2"/><path d="M3.4 20.6v-5h5"/>',
+    bell:'<path d="M18 15.6V10a6 6 0 1 0-12 0v5.6L4.4 18.2h15.2z"/><path d="M9.6 21.1a2.6 2.6 0 0 0 4.8 0"/>',
+    sliders:'<path d="M4 7.5h8.6M17.2 7.5h2.8M4 16.5h3.4M11.9 16.5h8.1"/><circle cx="15.2" cy="7.5" r="2.2"/><circle cx="9.6" cy="16.5" r="2.2"/>',
+    left:'<path d="M14.5 6 9 12l5.5 6"/>',
+    right:'<path d="M9.5 6 15 12l-5.5 6"/>',
+    plus:'<path d="M12 5.5v13M5.5 12h13"/>',
+    x:'<path d="M6.4 6.4 17.6 17.6M17.6 6.4 6.4 17.6"/>',
+    shield:'<path d="M12 3.2 19 6v5.8c0 4.1-2.8 7.5-7 8.9-4.2-1.4-7-4.8-7-8.9V6z"/>',
+    arrow:'<path d="M5 12h13M12.5 5.5 19 12l-6.5 6.5"/>'
+  };
+  return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">'+(paths[name]||'')+'</svg>';
+}
+
+/* ---------- 顶部 ---------- */
+function pagehead(title, sub, right){
+  return '<div class="pagehead"><div><div class="eyebrow">'+sub+'</div><h1>'+title+'</h1></div><div class="head-actions">'+right+'</div></div>';
+}
+const gearBtn = '<button class="iconbtn" data-act="open-settings" aria-label="设置">'+ic('sliders',20)+'</button>';
+
+/* ---------- Hero ---------- */
+function heroHTML(){
+  const nx = nextAlarm();
+  const a = authLabel();
+  if(!nx){
+    return '<section class="hero off">'
+      + '<div class="hero-top"><span class="hero-label">下一个闹钟</span><span class="authchip '+a.cls+'">'+a.text+'</span></div>'
+      + '<div class="hero-time">闹钟已关闭</div>'
+      + '<div class="hero-sub">打开总开关后，会按排班自动响铃</div>'
+      + '<div class="hero-foot"><span>未来 14 天按规律排班</span>'
+      + '<button class="bellbtn" data-act="toggle-master" aria-label="开启闹钟">'+ic('bell',18)+'</button></div>'
+      + '</section>';
+  }
+  const s = state.shifts[nx.shiftKey];
+  const lead = nx.dayOffset ? '次日 ' : '';
+  return '<section class="hero" data-act="go-alarms">'
+    + '<div class="hero-top"><span class="hero-label"><i class="pulse"></i>下一个闹钟</span>'
+    +   '<span class="authchip '+a.cls+'">'+a.text+'</span></div>'
+    + '<div class="hero-time">'+fmtMin(nx.minutes)+'</div>'
+    + '<div class="hero-sub">'+whenText(nx.when)+' '+weekCN(nx.when)+' · '+s.name+' '+lead+fmtMin(s.startMin)+' 开始</div>'
+    + '<div class="hero-foot"><span>还有 <b data-countdown="'+nx.when.toISOString()+'">'+countdownText(nx.when)+'</b></span>'
+    +   '<button class="bellbtn" data-act="beep" aria-label="预览响铃">'+ic('bell',18)+'</button></div>'
+    + '</section>';
+}
+
+/* ---------- 日历 ---------- */
+function calendarHTML(){
+  const y = state.cursor.getFullYear(), m = state.cursor.getMonth();
+  const first = new Date(y, m, 1);
+  const lead = (first.getDay() + 6) % 7;          // 周一开头
+  const dim = new Date(y, m+1, 0).getDate();
+  const total = Math.ceil((lead + dim) / 7) * 7;
+  const todayKey = iso(NOW);
+  const counts = {morning:0, afternoon:0, night:0, study:0, rest:0};
+  let cells = '';
+
+  for(let i=0;i<total;i++){
+    const d = new Date(y, m, 1 - lead + i);
+    const key = iso(d);
+    const inMonth = d.getMonth() === m;
+    const sk = shiftKeyFor(d);
+    const s = state.shifts[sk];
+    const ovr = !!state.overrides[key];
+    const isToday = key === todayKey;
+    if(inMonth) counts[sk]++;
+    const chipStyle = s.rest ? '' : ' style="background:'+s.color+'"';
+    cells += '<button class="day'+(inMonth?'':' out')+(isToday?' today':'')+'" data-act="open-day" data-date="'+key+'" aria-label="'+mdText(d)+s.name+'">'
+      + '<span class="num">'+d.getDate()+'</span>'
+      + '<span class="chip'+(s.rest?' rest':'')+(ovr?' ovr':'')+'"'+chipStyle+'>'+s.short+'</span>'
+      + '</button>';
+  }
+
+  const work = counts.morning + counts.afternoon + counts.night + counts.study;
+  const hours = (counts.morning + counts.study)*state.shifts.morning.hours + counts.afternoon*state.shifts.afternoon.hours + counts.night*state.shifts.night.hours;
+  const ratioWork = Math.round(work / Math.max(1, work+counts.rest) * 100);
+  const mLabel = y+'年'+(m+1)+'月';
+
+  const who = state.crews > 1 ? crewLabel(state.crewIndex)+' · ' : '';
+  return pagehead('班表', who + mdText(NOW)+' '+weekCN(NOW),
+      '<button class="pillbtn" data-act="today">今天</button>' + gearBtn)
+    + heroHTML()
+    + '<div class="calhead"><div class="m">'+mLabel+'<span>'+patternName()+'</span></div>'
+    +   '<div class="calnav"><button data-act="month" data-d="-1" aria-label="上个月">'+ic('left',18)+'</button>'
+    +   '<button data-act="month" data-d="1" aria-label="下个月">'+ic('right',18)+'</button></div></div>'
+    + '<div class="weekrow"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>'
+    + '<div class="grid">'+cells+'</div>'
+    + '<section class="card stats" style="margin-top:9px">'
+    +   '<div class="cosm">'
+    +     SHIFT_KEYS.map(k=>'<div class="cosm-b"><i style="background:'+state.shifts[k].color+'"></i><span>'+state.shifts[k].name+'</span><b class="c-'+k+'">'+counts[k]+'</b></div>').join('')
+    +   '</div>'
+    +   '<div class="ratio"><i style="width:'+ratioWork+'%;background:linear-gradient(90deg,#FF9F0A,#FF7A00)"></i>'
+    +     '<i style="width:'+(100-ratioWork)+'%;background:var(--chip-rest)"></i></div>'
+    +   '<div class="statfoot"><span>出勤 <b>'+work+'</b> 天 · 休息 <b>'+counts.rest+'</b> 天</span><span>约 <b>'+hours+'</b> 小时</span></div>'
+    + '</section>';
+}
+
+/* ---------- 规律页 ---------- */
+function cycleChips(dense){
+  return state.pattern.map((k,i)=>{
+    const s = state.shifts[k];
+    const style = s.rest ? '' : ' style="background:'+s.color+'"';
+    return '<span class="cchip'+(s.rest?' rest':'')+'"'+style+'>'+s.short+'</span>';
+  }).join(dense ? '' : '<i class="carrow">›</i>');
+}
+function ruleHTML(){
+  const strip = Array.from({length:14},(_,i)=>{
+    const d = addDays(NOW,i);
+    const s = state.shifts[shiftKeyFor(d)];
+    return '<div class="s"><span>'+WEEK[d.getDay()]+'</span><i style="background:'+s.color+';opacity:'+(s.rest?'.55':'1')+'"></i></div>';
+  }).join('');
+
+  const presets = PRESETS.map((p,i)=>{
+    const on = p.pattern.length===state.pattern.length && p.pattern.every((k,j)=>k===state.pattern[j]);
+    const dots = p.pattern.map(k=>'<i style="background:'+state.shifts[k].color+'"></i>').join('');
+    const badge = p.crews > 1 ? '<i class="pbadge">'+p.crews+' 班组</i>' : '';
+    return '<button class="preset'+(on?' on':'')+'" data-act="preset" data-i="'+i+'"><b>'+p.name+badge+'</b><span class="dots">'+dots+'</span></button>';
+  }).join('');
+
+  const rows = state.pattern.map((k,i)=>{
+    const seg = SHIFT_KEYS.map(key=>'<button class="'+(key===k?'on':'')+'" data-act="cycle-pick" data-i="'+i+'" data-k="'+key+'">'+state.shifts[key].short+'</button>').join('');
+    return '<div class="cycle-row"><span class="cday">第 '+(i+1)+' 天</span>'
+      + '<div class="seg seg4" style="flex:1">'+seg+'</div>'
+      + (state.pattern.length>1 ? '<button class="del" data-act="cycle-remove" data-i="'+i+'" aria-label="删除">'+ic('x',13)+'</button>' : '')
+      + '</div>';
+  }).join('');
+
+  return pagehead('排班规律', patternName()+' · '+state.pattern.length+' 天循环', gearBtn)
+    + '<section class="card">'
+    +   '<div style="display:flex;align-items:baseline;justify-content:space-between">'
+    +     '<b style="font-size:18px;font-weight:750;letter-spacing:-.4px">'+patternName()+'</b>'
+    +     '<span style="font-size:11.5px;color:var(--text2)">'+state.pattern.length+' 天一轮</span>'
+    +   '</div>'
+    +   '<div class="cyclerow'+(state.pattern.length>6?' dense':'')+'">'+cycleChips(state.pattern.length>6)+'</div>'
+    +   '<div class="cyclemeta"><span>起始日 <b>'+mdText(fromISO(state.anchor))+' '+weekCN(fromISO(state.anchor))+'</b></span>'
+    +     '<span style="margin-left:auto">出勤 <b>'+state.pattern.filter(k=>k!=='rest').length+'</b> / '+state.pattern.length+' 天</span></div>'
+    +   (state.crews > 1
+        ? '<div class="cyclemeta" style="border-top:0;padding-top:4px"><span><b>'+state.crews+'</b> 个班组 · 错开 '+crewStride()+' 天</span>'
+          + '<button class="linkbtn" data-act="tab" data-tab="crew">查看班组排版 ›</button></div>'
+        : '')
+    +   '<div class="striplabel">未来 14 天预览</div>'
+    +   '<div class="strip">'+strip+'</div>'
+    + '</section>'
+    + '<div class="sec-title">预设规律 <span>点一下立即套用</span></div>'
+    + '<div class="presets">'+presets+'</div>'
+    + '<div class="sec-title">编辑循环 <span>每天一个班次</span></div>'
+    + '<section class="card" style="padding-top:6px;padding-bottom:6px">'+rows+'</section>'
+    + '<button class="addcycle" data-act="cycle-add">'+ic('plus',15)+' 添加一天</button>'
+    + '<div class="sec-title">循环起点</div>'
+    + '<section class="card"><div class="rowline"><span class="lb">从这天开始循环</span>'
+    +   '<div class="stepper"><button data-act="anchor-step" data-d="-1" aria-label="前一天">‹</button>'
+    +   '<b>'+mdText(fromISO(state.anchor))+'</b>'
+    +   '<button data-act="anchor-step" data-d="1" aria-label="后一天">›</button></div></div></section>'
+    + '<p class="footnote">改这里的规律，月历会立刻重排；单个日期的手动调整会保留并覆盖规律。</p>';
+}
+
+/* ---------- 班组页 ---------- */
+function crewHTML(){
+  if(state.crews <= 1){
+    return pagehead('班组', '当前是单人排班', gearBtn)
+      + '<section class="card emptystate">'
+      +   '<b>没有多班组轮转</b>'
+      +   '<span>「'+patternName()+'」是单人排班，不存在班组错位。<br>换成「五班三倒」或「四班三倒」，就能看到全班组的排版。</span>'
+      +   '<button class="btn primary" data-act="preset" data-i="0">切换到五班三倒</button>'
+      + '</section>';
+  }
+  const start = state.crewWeek || mondayOf(NOW);
+  const days = Array.from({length:7},(_,i)=>addDays(start,i));
+  const todayKey = iso(NOW);
+
+  const head = '<div class="mhead"></div>' + days.map(d=>{
+    const isToday = iso(d) === todayKey;
+    return '<div class="mhead'+(isToday?' today':'')+'">周'+WEEK[d.getDay()]+'<b>'+d.getDate()+'</b></div>';
+  }).join('');
+
+  let rows = '';
+  for(let k=0;k<state.crews;k++){
+    rows += '<button class="mcrew'+(k===state.crewIndex?' me':'')+'" data-act="crew-pick" data-k="'+k+'">'+crewLabel(k)+'</button>';
+    days.forEach(d=>{
+      const s = state.shifts[shiftKeyFor(d, k)];
+      rows += '<div class="mcell'+(s.rest?' rest':'')+'"'+(s.rest?'':' style="background:'+s.color+'"')+'>'+s.short+'</div>';
+    });
+  }
+
+  const mine = {morning:0, afternoon:0, night:0, study:0, rest:0};
+  days.forEach(d=>{ mine[shiftKeyFor(d, state.crewIndex)]++; });
+  const work = mine.morning + mine.afternoon + mine.night + mine.study;
+
+  return pagehead('班组', patternName()+' · '+state.crews+' 个班组',
+      '<button class="pillbtn" data-act="open-rename">改名</button>' + gearBtn)
+    + '<div class="weeknav"><div class="lb">'+mdText(start)+' – '+mdText(addDays(start,6))+'</div>'
+    +   '<div class="nav"><button class="iconbtn" data-act="crew-week" data-d="-1" aria-label="上一周">'+ic('left',17)+'</button>'
+    +   '<button class="pillbtn" data-act="crew-now">本周</button>'
+    +   '<button class="iconbtn" data-act="crew-week" data-d="1" aria-label="下一周">'+ic('right',17)+'</button></div></div>'
+    + '<section class="matrix"><div class="mgrid">'+head+rows+'</div>'
+    +   '<div class="mlegend">'
+    +     SHIFT_KEYS.filter(k=>k!=='rest').map(k=>'<span><i style="background:'+state.shifts[k].color+'"></i>'+state.shifts[k].name+'</span>').join('')
+    +     '<span><i style="background:var(--chip-rest)"></i>休息</span>'
+    +     '<span class="hintx">点班组名切换视角</span>'
+    +   '</div>'
+    + '</section>'
+    + '<div class="sec-title">本周我的班 <span>'+crewLabel(state.crewIndex)+'</span></div>'
+    + '<section class="card"><div class="cosm">'
+    +   SHIFT_KEYS.map(k=>'<div class="cosm-b"><i style="background:'+state.shifts[k].color+'"></i><span>'+state.shifts[k].name+'</span><b class="c-'+k+'">'+mine[k]+'</b></div>').join('')
+    + '</div><div class="statfoot" style="margin-top:10px"><span>上班 <b>'+work+'</b> 天 · 休息 <b>'+mine.rest+'</b> 天</span><span>每天 3 个班顶岗</span></div></section>'
+    + '<p class="footnote">五班三倒：10 天一轮，每班 2 早 · 2 中 · 2 夜 · 1 学 · 3 休；5 个班组错开 2 天，每天恰好 3 个班顶岗。</p>';
+}
+
+/* ---------- 闹钟页 ---------- */
+function alarmsHTML(){
+  const list = upcoming(8);
+  const nx = list[0] || null;
+  const a = authLabel();
+  const listRows = list.map(x=>{
+    const s = state.shifts[x.shiftKey];
+    return '<div class="arow">'
+      + '<div class="atime">'+fmtMin(x.minutes)+'</div>'
+      + '<div class="ameta"><b>'+mdText(x.when)+' '+weekCN(x.when)+'</b><span><i class="cdot" style="background:'+s.color+'"></i>'+s.name+' '+(x.dayOffset?'次日 ':'')+fmtMin(s.startMin)+'–'+fmtMin(s.startMin+s.hours*60)+'</span></div>'
+      + '<button class="switch on" data-act="toggle-alarm" data-date="'+x.shiftDate+'" aria-label="关闭该闹钟"></button>'
+      + '</div>';
+  }).join('');
+
+  const big = state.master && nx
+    ? '<div class="bigtop"><span>下一个闹钟</span><button class="switch on" data-act="toggle-master" aria-label="关闭全部闹钟"></button></div>'
+      + '<div class="bigtime">'+fmtMin(nx.minutes)+'</div>'
+      + '<div class="bigsub">'+whenText(nx.when)+' '+weekCN(nx.when)+' · '+state.shifts[nx.shiftKey].name+' '+fmtMin(state.shifts[nx.shiftKey].startMin)+' 开始</div>'
+      + '<div class="bigfoot"><span>还有 <b data-countdown="'+nx.when.toISOString()+'">'+countdownText(nx.when)+'</b></span>'
+      + '<button data-act="beep">预览响铃 ›</button></div>'
+    : '<div class="bigtop"><span>闹钟</span><button class="switch" data-act="toggle-master" aria-label="开启全部闹钟"></button></div>'
+      + '<div class="bigtime">--:--</div>'
+      + '<div class="bigsub">'+(state.master ? '未来 14 天没有需要响铃的班次' : '总开关已关闭，所有闹钟暂停')+'</div>'
+      + '<div class="bigfoot"><span>按排班规律自动生成</span><button data-act="toggle-master">开启 ›</button></div>';
+
+  return pagehead('闹钟', '未来 14 天 · '+list.length+' 个闹钟', gearBtn)
+    + '<section class="card bigcard'+(state.master && nx ? '' : ' off')+'">'+big+'</section>'
+    + '<section class="card authcard '+state.auth+'">'
+    +   '<div class="auth-ic">'+ic('shield',19)+'</div>'
+    +   '<div class="auth-txt"><b>系统闹钟权限</b><span>'
+    +     (state.auth==='granted' ? '已授权，静音和专注模式下也会响铃'
+           : state.auth==='denied' ? '已拒绝，闹钟不会响，只能收到普通通知'
+           : '未授权，系统闹钟不会响铃')
+    +   '</span></div>'
+    +   '<button class="mini-btn'+(state.auth==='granted'?' ghost':'')+'" data-act="open-auth">'+(state.auth==='granted'?'管理':'去授权')+'</button>'
+    + '</section>'
+    + '<div class="sec-title">接下来的闹钟 <span>共 '+list.length+' 个</span></div>'
+    + '<section class="card alist">'
+    +   (list.length ? listRows : '<div class="empty"><b>暂无闹钟</b><span>打开总开关，或在「规律」里先设置好班次时间</span></div>')
+    + '</section>'
+    + '<p class="footnote">周期轮班不是“每周重复”，所以实现上会把未来 14 天展开成一批一次性系统闹钟，App 打开或后台刷新时顺延补排。</p>';
+}
+
+/* ---------- 浮层：日详情 ---------- */
+function dayBodyHTML(){
+  const key = state.dayDate;
+  const d = fromISO(key);
+  const sk = shiftKeyFor(d);
+  const s = state.shifts[sk];
+  const ovr = !!state.overrides[key];
+  const al = alarmForDate(d);
+  const isToday = key === iso(NOW);
+  const disabled = s.rest || !state.master || !s.enabled;
+  const seg = SHIFT_KEYS.map(k=>'<button class="'+(k===sk?'on':'')+'" data-act="pick-shift" data-k="'+k+'">'+state.shifts[k].name+'</button>').join('');
+
+  let hint = (state.crews > 1 ? crewLabel(state.crewIndex)+' · ' : '') + '按「'+patternName()+'」自动排班';
+  if(ovr) hint = '已手动调整，不再跟随周期规则';
+  if(!state.master) hint = '总开关已关闭，闹钟不会响';
+
+  return '<div class="sheet-title">'+mdText(d)+' <span class="wk">'+weekCN(d)+(isToday?' · 今天':'')+'</span></div>'
+    + '<div class="sheet-sub">'+hint+'</div>'
+    + '<div class="seg seg4" style="margin:14px 0 0">'+seg+'</div>'
+    + '<section class="card list" style="margin-top:12px">'
+    +   '<div class="drow"><span>班次时间</span><b>'+shiftRange(s)+'</b></div>'
+    +   '<div class="drow"><span>闹钟时间</span><b>'+(al ? fmtMin(al.minutes)+(al.dayOffset?'（前一天）':'') : '—')+'</b></div>'
+    +   '<div class="drow"><span>提前提醒</span><b>'+(s.rest?'—':s.lead+' 分钟')+'</b></div>'
+    + '</section>'
+    + '<div class="card rowcard"><div><b>该日闹钟</b><span>'+(s.rest?'休息日不设闹钟':(al?'会覆盖静音，全屏响铃':'已关闭'))+'</span></div>'
+    +   '<button class="switch'+(al?' on':'')+(disabled?' disabled':'')+'" data-act="toggle-day-alarm" aria-label="开关该日闹钟"></button></div>'
+    + (ovr ? '<button class="textbtn" data-act="reset-override">恢复为循环规律</button>' : '')
+    + '<button class="btn primary" data-act="close-panel">完成</button>';
+}
+
+/* ---------- 浮层：设置 ---------- */
+function settingsBodyHTML(){
+  const themeSeg = [['system','跟随系统'],['light','浅色'],['dark','深色']]
+    .map(t=>'<button class="'+(state.theme===t[0]?'on':'')+'" data-act="theme" data-v="'+t[0]+'">'+t[1]+'</button>').join('');
+
+  const shiftRows = ['morning','afternoon','night','study'].map(k=>{
+    const s = state.shifts[k];
+    const open = state.expandShift === k;
+    return '<div class="srow">'
+      + '<button class="srow-main" data-act="expand-shift" data-k="'+k+'">'
+      +   '<i class="sdot" style="background:'+s.color+'"></i>'
+      +   '<div><b>'+s.name+'</b><span>'+shiftRange(s)+' · 提前 '+s.lead+' 分钟</span></div>'
+      +   '<span class="chev'+(open?' open':'')+'">'+ic('right',15)+'</span>'
+      + '</button>'
+      + (open ? '<div class="srow-panel">'
+      +   '<div class="minirow"><span>开始时间</span><div class="stepper">'
+      +     '<button data-act="shift-start" data-k="'+k+'" data-d="-1">−</button><b>'+fmtMin(s.startMin)+'</b><button data-act="shift-start" data-k="'+k+'" data-d="1">+</button></div></div>'
+      +   '<div class="minirow"><span>班次时长</span><div class="stepper">'
+      +     '<button data-act="shift-hours" data-k="'+k+'" data-d="-1">−</button><b>'+s.hours+' 小时</b><button data-act="shift-hours" data-k="'+k+'" data-d="1">+</button></div></div>'
+      +   '<div class="minirow"><span>提前提醒</span><div class="stepper">'
+      +     '<button data-act="shift-lead" data-k="'+k+'" data-d="-5">−</button><b>'+s.lead+' 分钟</b><button data-act="shift-lead" data-k="'+k+'" data-d="5">+</button></div></div>'
+      + '</div>' : '')
+      + '</div>';
+  }).join('');
+
+  const authTxt = state.auth==='granted' ? '已授权' : state.auth==='denied' ? '已拒绝' : '未授权';
+  const ovrCount = Object.keys(state.overrides).length + Object.keys(state.alarmOff).length;
+
+  return '<div class="sheet-title">设置 <span class="wk"></span></div>'
+    + '<div class="sec-title" style="margin-top:14px">外观</div>'
+    + '<div class="seg">'+themeSeg+'</div>'
+    + '<div class="sec-title">班次与闹钟</div>'
+    + '<section class="card" style="padding-top:2px;padding-bottom:2px">'+shiftRows+'</section>'
+    + '<div class="sec-title">系统闹钟</div>'
+    + '<section class="card" style="padding-top:0;padding-bottom:0"><div class="rowline">'
+    +   '<span class="lb">闹钟权限</span><span class="vl">'+authTxt+'</span></div></section>'
+    + '<div class="sec-title">数据</div>'
+    + '<section class="card" style="padding-top:0;padding-bottom:0">'
+    +   '<div class="rowline"><span class="lb">手动调整</span><button class="mini-btn ghost" data-act="clear-overrides">清除（'+ovrCount+'）</button></div>'
+    + '</section>'
+    + '<p class="footnote">班表闹钟 · 交互原型 v0.1<br>正式版：SwiftUI + SwiftData + AlarmKit（iOS 26）</p>'
+    + '<button class="btn primary" data-act="close-panel">完成</button>';
+}
+
+/* ---------- 浮层：班组改名 ---------- */
+function renameBodyHTML(){
+  const rows = Array.from({length:state.crews},(_,i)=>{
+    return '<div class="namerow"><span class="nidx">'+(i+1)+'</span>'
+      + '<input class="nameinput" data-name="'+i+'" type="text" maxlength="6" value="'+crewLabel(i)+'"'
+      + ' placeholder="'+defaultCrewName(i)+'" onfocus="this.select()" aria-label="第 '+(i+1)+' 个班组名称"></div>';
+  }).join('');
+  return '<div class="sheet-title">班组名称</div>'
+    + '<div class="sheet-sub">最多 6 个字，改完点完成</div>'
+    + '<section class="card list" style="margin-top:14px;padding-top:4px;padding-bottom:4px">'+rows+'</section>'
+    + '<button class="textbtn neutral" data-act="rename-reset">恢复默认名称</button>'
+    + '<button class="btn primary" data-act="rename-done">完成</button>';
+}
+
+/* ---------- 浮层：系统授权 ---------- */
+function authAlertHTML(){
+  return '<div class="scrim soft" data-act="close-auth"></div>'
+    + '<div class="alert" role="alertdialog">'
+    +   '<div class="alert-body"><h3>“班表闹钟”想使用系统闹钟</h3>'
+    +   '<p>允许后，班次开始前会由系统闹钟提醒你，即使手机静音或开启专注模式也能响铃。</p></div>'
+    +   '<div class="alert-actions">'
+    +     '<button class="alert-btn" data-act="deny-auth">不允许</button>'
+    +     '<button class="alert-btn bold" data-act="allow-auth">允许</button>'
+    +   '</div>'
+    + '</div>';
+}
+
+/* ---------- 浮层：响铃 ---------- */
+function beepHTML(){
+  const nx = nextAlarm();
+  const s = nx ? state.shifts[nx.shiftKey] : state.shifts.morning;
+  const time = nx ? fmtMin(nx.minutes) : '07:30';
+  const dateText = nx ? mdText(nx.when)+' '+weekCN(nx.when) : mdText(NOW)+' '+weekCN(NOW);
+  return '<div class="alarm">'
+    + '<div class="alarm-glow"></div><i class="ring"></i><i class="ring"></i><i class="ring"></i>'
+    + '<div class="alarm-content">'
+    +   '<div class="alarm-shift">'+dateText+' · '+s.name+'</div>'
+    +   '<div class="alarm-time">'+time+'</div>'
+    +   '<div class="alarm-note">'+fmtMin(s.startMin)+' 开始 · 提前 '+s.lead+' 分钟</div>'
+    +   '<div class="alarm-bell">'+ic('bell',34)+'</div>'
+    +   '<div class="alarm-spacer"></div>'
+    +   '<button class="alarm-stop" data-act="beep-off">停止</button>'
+    +   '<button class="alarm-snooze" data-act="snooze">稍后提醒（9 分钟）</button>'
+    +   '<div class="alarm-foot">系统闹钟 · 静音与专注模式下仍会响铃</div>'
+    + '</div>'
+    + '</div>';
+}
+
+/* ---------- 渲染 ---------- */
+const viewEl = document.getElementById('view');
+const tabEl = document.getElementById('tabbar');
+const layersEl = document.getElementById('layers');
+const clockEl = document.getElementById('clock');
+
+function renderView(){
+  if(state.view === 'calendar') viewEl.innerHTML = calendarHTML();
+  else if(state.view === 'crew') viewEl.innerHTML = crewHTML();
+  else if(state.view === 'rule') viewEl.innerHTML = ruleHTML();
+  else viewEl.innerHTML = alarmsHTML();
+}
+function renderTab(){
+  const TABS = [
+    {k:'calendar', label:'排班', icon:'calendar'},
+    {k:'crew', label:'班组', icon:'grid'},
+    {k:'rule', label:'规律', icon:'repeat'},
+    {k:'alarms', label:'闹钟', icon:'bell'}
+  ];
+  tabEl.innerHTML = TABS.map(t=>'<button class="tab'+(state.view===t.k?' on':'')+'" data-act="tab" data-tab="'+t.k+'">'
+    + ic(t.icon, 23) + '<span>'+t.label+'</span></button>').join('')
+    + '<i class="homebar"></i>';
+}
+
+let layerKind = null;
+const SHEET_BODIES = {day:dayBodyHTML, settings:settingsBodyHTML, rename:renameBodyHTML};
+function syncLayers(){
+  const kind = state.beep ? 'beep' : state.panel;
+  if(kind !== layerKind){
+    layerKind = kind;
+    layersEl.innerHTML = '';
+    if(SHEET_BODIES[kind]){
+      layersEl.innerHTML = '<div class="scrim" data-act="close-panel"></div>'
+        + '<section class="sheet"><div class="grabber"></div><div class="sheet-body" id="panelBody"></div></section>';
+    } else if(kind === 'auth'){
+      layersEl.innerHTML = authAlertHTML();
+    } else if(kind === 'beep'){
+      layersEl.innerHTML = beepHTML();
+    }
+  }
+  if(SHEET_BODIES[kind]) document.getElementById('panelBody').innerHTML = SHEET_BODIES[kind]();
+  else if(kind === 'beep') layersEl.innerHTML = beepHTML();
+}
+
+let lastView = null;
+function render(){
+  const keep = (lastView === state.view) ? viewEl.scrollTop : 0;
+  renderView();
+  renderTab();
+  syncLayers();
+  viewEl.scrollTop = keep;
+  lastView = state.view;
+}
+
+/* ---------- 主题 ---------- */
+const mq = window.matchMedia('(prefers-color-scheme: dark)');
+function applyTheme(){
+  const t = state.theme === 'system' ? (mq.matches ? 'dark' : 'light') : state.theme;
+  document.documentElement.dataset.theme = t;
+}
+if(mq.addEventListener) mq.addEventListener('change', ()=>{ if(state.theme==='system') applyTheme(); });
+
+/* ---------- 提示 ---------- */
+let toastTimer = null;
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>el.classList.remove('show'), 1900);
+}
+
+/* ---------- 动作 ---------- */
+function onAction(act, el){
+  const ds = el.dataset;
+  switch(act){
+    case 'tab':
+      if(state.view !== ds.tab){ state.view = ds.tab; state.panel = null; state.beep = false; }
+      render(); break;
+    case 'go-alarms':
+      state.view = 'alarms'; render(); break;
+    case 'month': {
+      const d = Number(ds.d) || 1;
+      state.cursor = new Date(state.cursor.getFullYear(), state.cursor.getMonth()+d, 1);
+      render(); break;
+    }
+    case 'today':
+      state.cursor = new Date(NOW.getFullYear(), NOW.getMonth(), 1);
+      render(); break;
+    case 'open-day':
+      state.dayDate = ds.date; state.panel = 'day'; render(); break;
+    case 'close-panel':
+      if(state.panel === 'rename') normalizeCrewNames();
+      state.panel = null; render(); break;
+    case 'open-rename':
+      state.panel = 'rename'; render(); break;
+    case 'rename-done':
+      normalizeCrewNames(); state.panel = null; toast('班组名称已更新'); render(); break;
+    case 'rename-reset':
+      state.crewNames = CREW_DEFAULTS.slice();
+      toast('已恢复默认名称'); render(); break;
+    case 'open-settings':
+      state.panel = 'settings'; render(); break;
+    case 'pick-shift': {
+      const key = state.dayDate;
+      const base = baseShiftKeyFor(fromISO(key));
+      if(ds.k === base) delete state.overrides[key];
+      else state.overrides[key] = ds.k;
+      render(); break;
+    }
+    case 'reset-override':
+      delete state.overrides[state.dayDate];
+      toast('已恢复为循环规律'); render(); break;
+    case 'toggle-day-alarm': {
+      const key = state.dayDate;
+      if(state.alarmOff[key]) delete state.alarmOff[key];
+      else state.alarmOff[key] = true;
+      render(); break;
+    }
+    case 'preset': {
+      const p = PRESETS[Number(ds.i)];
+      if(!p) break;
+      state.pattern = p.pattern.slice();
+      state.crews = p.crews || 1;
+      if(state.crewIndex >= state.crews) state.crewIndex = 0;
+      toast('已套用「'+p.name+'」'); render(); break;
+    }
+    case 'cycle-pick':
+      state.pattern[Number(ds.i)] = ds.k; render(); break;
+    case 'cycle-add':
+      state.pattern.push('rest'); validateCrews(); toast('已添加 1 天'); render(); break;
+    case 'cycle-remove': {
+      if(state.pattern.length <= 1) break;
+      state.pattern.splice(Number(ds.i), 1);
+      if(state.pattern.length < 2) state.pattern.push('rest');
+      validateCrews();
+      render(); break;
+    }
+    case 'crew-pick': {
+      const k = Number(ds.k);
+      if(k === state.crewIndex) break;
+      state.crewIndex = k;
+      toast('已切换为'+crewLabel(k)+'视角'); render(); break;
+    }
+    case 'crew-week': {
+      const base = state.crewWeek || mondayOf(NOW);
+      state.crewWeek = addDays(base, (Number(ds.d)||1) * 7);
+      render(); break;
+    }
+    case 'crew-now':
+      state.crewWeek = mondayOf(NOW); render(); break;
+    case 'anchor-step':
+      state.anchor = iso(addDays(fromISO(state.anchor), Number(ds.d)||1));
+      render(); break;
+    case 'expand-shift':
+      state.expandShift = state.expandShift === ds.k ? null : ds.k; render(); break;
+    case 'shift-start': {
+      const s = state.shifts[ds.k];
+      s.startMin = Math.min(23*60+45, Math.max(0, s.startMin + (Number(ds.d)||0)*15));
+      render(); break;
+    }
+    case 'shift-hours': {
+      const s = state.shifts[ds.k];
+      s.hours = Math.min(12, Math.max(4, s.hours + (Number(ds.d)||0)));
+      render(); break;
+    }
+    case 'shift-lead': {
+      const s = state.shifts[ds.k];
+      s.lead = Math.min(120, Math.max(0, s.lead + (Number(ds.d)||0)));
+      render(); break;
+    }
+    case 'theme':
+      state.theme = ds.v; applyTheme(); render(); break;
+    case 'clear-overrides':
+      state.overrides = {}; state.alarmOff = {};
+      toast('已清除所有手动调整'); render(); break;
+    case 'open-auth':
+      if(state.auth === 'granted'){ toast('演示：跳转到系统设置'); break; }
+      state.panel = 'auth'; render(); break;
+    case 'close-auth':
+      state.panel = null; render(); break;
+    case 'allow-auth':
+      state.auth = 'granted'; state.panel = null;
+      toast('已开启系统闹钟权限'); render(); break;
+    case 'deny-auth':
+      state.auth = 'denied'; state.panel = null;
+      toast('已拒绝，闹钟不会响铃'); render(); break;
+    case 'toggle-master':
+      state.master = !state.master;
+      toast(state.master ? '总开关已开启' : '总开关已关闭');
+      render(); break;
+    case 'toggle-alarm': {
+      const key = ds.date;
+      if(state.alarmOff[key]) delete state.alarmOff[key];
+      else state.alarmOff[key] = true;
+      render(); break;
+    }
+    case 'beep':
+      if(!state.master){ toast('总开关已关闭'); break; }
+      state.panel = null; state.beep = true; render(); break;
+    case 'beep-off':
+      state.beep = false; toast('闹钟已停止'); render(); break;
+    case 'snooze':
+      state.beep = false; toast('9 分钟后再次响铃'); render(); break;
+  }
+}
+document.addEventListener('click', e=>{
+  const el = e.target.closest('[data-act]');
+  if(!el) return;
+  e.stopPropagation();
+  onAction(el.dataset.act, el);
+});
+
+/* 班组改名：边输边写 state，不重绘，避免输入框失焦 */
+document.addEventListener('input', e=>{
+  const el = e.target;
+  if(!el || !el.dataset || el.dataset.name === undefined) return;
+  state.crewNames[Number(el.dataset.name)] = el.value.replace(/[<>"]/g,'');
+});
+document.addEventListener('keydown', e=>{
+  if(e.key !== 'Enter' || state.panel !== 'rename') return;
+  normalizeCrewNames(); state.panel = null; toast('班组名称已更新'); render();
+});
+
+/* ---------- 时钟 / 倒计时 ---------- */
+function fmtClock(d){ return pad(d.getHours())+':'+pad(d.getMinutes()); }
+let lastNext = null;
+function tick(){
+  if(clockEl) clockEl.textContent = fmtClock(new Date());
+  document.querySelectorAll('[data-countdown]').forEach(el=>{
+    const t = new Date(el.dataset.countdown);
+    if(!isNaN(t)) el.textContent = countdownText(t);
+  });
+  // 闹钟时间点过去后，自动切到下一个
+  const nx = nextAlarm();
+  const key = nx ? String(nx.when.getTime()) : '';
+  if(lastNext !== null && key !== lastNext) render();
+  lastNext = key;
+}
+
+/* ---------- 缩放适配 ---------- */
+const phone = document.getElementById('phone');
+const PHONE_MQ = window.matchMedia('(max-width: 540px)');
+function fit(){
+  const s = Math.min((window.innerWidth - 28) / 390, (window.innerHeight - 76) / 844, 1.15);
+  phone.style.transform = 'scale('+Math.max(0.42, s)+')';
+}
+function layout(){
+  const full = PHONE_MQ.matches || new URLSearchParams(location.search).get('full') === '1';
+  document.body.classList.toggle('fullscreen', full);
+  if(full) phone.style.transform = 'none';
+  else fit();
+}
+window.addEventListener('resize', layout);
+window.addEventListener('orientationchange', layout);
+if(PHONE_MQ.addEventListener) PHONE_MQ.addEventListener('change', layout);
+
+/* ---------- 启动 ---------- */
+(function init(){
+  const q = new URLSearchParams(location.search);
+  if(q.get('theme')) state.theme = q.get('theme');
+  if(q.get('view')) state.view = q.get('view');
+  if(q.get('auth')) state.auth = q.get('auth');
+  if(q.get('names')) state.crewNames = q.get('names').split(',');
+  if(q.get('noanim') === '1') document.documentElement.classList.add('no-anim');
+  state.dayDate = q.get('date') || iso(NOW);
+  if(q.get('panel')) state.panel = q.get('panel');
+  if(q.get('expand')) state.expandShift = q.get('expand');
+  if(q.get('beep') === '1') state.beep = true;
+  applyTheme();
+  layout();
+  render();
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>
