@@ -26,7 +26,7 @@ struct QuickStartView: View {
                     stepTitle("① 从哪天开始")
                     miniCalendar
 
-                    stepTitle("② 那天上什么班")
+                    stepTitle("② \(CalendarX.md(picked)) \(CalendarX.week(picked)) 上什么班")
                     shiftPicker
                     kindHint
 
