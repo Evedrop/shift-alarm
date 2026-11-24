@@ -123,13 +123,15 @@ final class AlarmService: ObservableObject {
 
         let when = Alarm.Schedule.fixed(alarm.fireDate)
 
-        // iOS 26 的 Alert 不再接收 stopButton（系统自带停止按钮），
-        // 而且 title 的类型是 LocalizedStringResource，不是 String
+        // iOS 26.1 才有无 stopButton 的新初始化方法；这里用 26.0 就有的旧方法（仅弃用警告），
+        // 保证 iOS 26.0 的机器也能装
         let title = LocalizedStringResource(
             stringLiteral: "\(def.name) \(CalendarX.timeLabel(def.startMinute)) 开始"
         )
+        let stopButton = AlarmButton(text: "停止", textColor: .white, systemImageName: "stop.fill")
         let alert = AlarmPresentation.Alert(
             title: title,
+            stopButton: stopButton,
             secondaryButton: nil,
             secondaryButtonBehavior: nil
         )
