@@ -121,25 +121,30 @@ final class AlarmService: ObservableObject {
     private func schedule(alarm: PlannedAlarm, plan: Plan, id: UUID) async throws {
         let def = plan.shiftDef(alarm.kind)
 
-        let schedule = Alarm.Schedule.fixed(alarm.fireDate)
+        let when = Alarm.Schedule.fixed(alarm.fireDate)
 
+        // iOS 26 的 Alert 不再接收 stopButton（系统自带停止按钮），
+        // 而且 title 的类型是 LocalizedStringResource，不是 String
+        let title = LocalizedStringResource(
+            stringLiteral: "\(def.name) \(CalendarX.timeLabel(def.startMinute)) 开始"
+        )
         let alert = AlarmPresentation.Alert(
-            title: "\(def.name) \(CalendarX.timeLabel(def.startMinute)) 开始",
-            stopButton: .stopButton,
+            title: title,
             secondaryButton: nil,
             secondaryButtonBehavior: nil
         )
 
-        let attributes = AlarmAttributes(
+        // 显式写出泛型参数，避免推断失败
+        let attributes = AlarmAttributes<ShiftAlarmMetadata>(
             presentation: AlarmPresentation(alert: alert),
             metadata: ShiftAlarmMetadata(shiftName: def.name,
                                          shiftDate: CalendarX.isoKey(alarm.shiftDate)),
             tintColor: Color(hex: def.colorHex)
         )
 
-        let configuration = AlarmManager.AlarmConfiguration(
+        let configuration = AlarmManager.AlarmConfiguration<ShiftAlarmMetadata>(
             countdownDuration: nil,
-            schedule: schedule,
+            schedule: when,
             attributes: attributes,
             stopIntent: nil,
             secondaryIntent: nil,
