@@ -1,7 +1,6 @@
 import SwiftUI
 
-/// 快速排班：点一天 → 选那天的班 → 后面自动按规律往下排。
-/// 不用再去规律页改「起始日」和逐天微调。
+/// 快速排班：选班组 → 点一天 → 选那天的班（同一天有两个同班次时选第几个）→ 逐天微调 → 开始。
 struct QuickStartView: View {
     @EnvironmentObject private var store: PlanStore
     @Environment(\.dismiss) private var dismiss
@@ -9,33 +8,28 @@ struct QuickStartView: View {
     @State private var month = CalendarX.startOfMonth(Date())
     @State private var picked = CalendarX.startOfDay(Date())
     @State private var kind: ShiftKind = .morning
+    @State private var patternIndex: Int? = nil          // 选中的是循环里第几个
+    @State private var dayEdits: [String: ShiftKind] = [:] // 逐天修改（未提交）
 
     private var plan: Plan { store.plan }
-
-    /// 选中「这天 + 这个班」后应该用的循环起点
-    private var anchor: Date? {
-        plan.alignedAnchor(for: picked, kind: kind)
-    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: 14) {
                     header
-
+                    crewRow
                     stepTitle("① 从哪天开始")
                     miniCalendar
-
                     stepTitle("② \(CalendarX.md(picked)) \(CalendarX.week(picked)) 上什么班")
                     shiftPicker
-                    kindHint
-
-                    stepTitle("③ 后面自动这样排")
-                    previewCard
-
+                    occurrencePicker
+                    stepTitle("③ 后面这样排（可逐天改）")
+                    editRows
+                    hint
                     Button("就从这天开始") { apply() }
                         .buttonStyle(PrimaryButtonStyle())
-                        .padding(.top, 4)
+                        .padding(.top, 2)
                 }
                 .padding(16)
             }
@@ -51,7 +45,7 @@ struct QuickStartView: View {
         .presentationDetents([.large])
     }
 
-    // MARK: 顶部：当前规律
+    // MARK: 顶部
 
     private var header: some View {
         HStack(spacing: 10) {
@@ -62,11 +56,8 @@ struct QuickStartView: View {
                 .background(Circle().fill(Color.brand.opacity(0.12)))
 
             VStack(alignment: .leading, spacing: 1) {
-                Text("当前规律")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                Text(plan.patternName)
-                    .font(.system(size: 15, weight: .semibold))
+                Text("当前规律").font(.system(size: 11)).foregroundStyle(.secondary)
+                Text(plan.patternName).font(.system(size: 15, weight: .semibold))
             }
 
             Spacer()
@@ -76,6 +67,8 @@ struct QuickStartView: View {
                     Button(preset.name) {
                         store.apply(preset: preset)
                         store.normalizeCrews()
+                        patternIndex = nil
+                        dayEdits = [:]
                     }
                 }
             } label: {
@@ -94,11 +87,44 @@ struct QuickStartView: View {
         .card()
     }
 
+    @ViewBuilder
+    private var crewRow: some View {
+        if plan.crews > 1 {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack {
+                    Text("我是哪个班")
+                        .font(.system(size: 13, weight: .semibold))
+                    Spacer()
+                    Text("切换后整月按这个班算")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+                HStack(spacing: 6) {
+                    ForEach(0..<plan.crews, id: \.self) { crew in
+                        Button {
+                            store.plan.myCrew = crew
+                                    } label: {
+                            Text(plan.crewName(crew))
+                                .font(.system(size: 12, weight: .semibold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 32)
+                                .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(crew == plan.myCrew ? Color.brand : Color.restGray))
+                                .foregroundStyle(crew == plan.myCrew ? Color.white : Color.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .card(padding: 12)
+        }
+    }
+
     private func stepTitle(_ text: String) -> some View {
         HStack {
-            Text(text)
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondary)
+            Text(text).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
             Spacer()
         }
         .padding(.horizontal, 4)
@@ -120,8 +146,7 @@ struct QuickStartView: View {
                     Image(systemName: "chevron.left").frame(width: 30, height: 30)
                 }
                 Spacer()
-                Text(CalendarX.monthTitle(month))
-                    .font(.system(size: 15, weight: .semibold))
+                Text(CalendarX.monthTitle(month)).font(.system(size: 15, weight: .semibold))
                 Spacer()
                 Button { month = CalendarX.addMonths(month, 1) } label: {
                     Image(systemName: "chevron.right").frame(width: 30, height: 30)
@@ -138,8 +163,7 @@ struct QuickStartView: View {
                 }
             }
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7),
-                      spacing: 2) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 2) {
                 ForEach(days, id: \.self) { day in
                     dayButton(day)
                 }
@@ -154,12 +178,13 @@ struct QuickStartView: View {
         let isToday = CalendarX.startOfDay(day) == CalendarX.startOfDay(Date())
         return Button {
             picked = CalendarX.startOfDay(day)
+            dayEdits = [:]
+            patternIndex = nil
         } label: {
             Text("\(CalendarX.cal.component(.day, from: day))")
                 .font(.system(size: 15, weight: isPicked ? .bold : .regular))
-                .foregroundStyle(isPicked ? Color.white
-                                 : (inMonth ? Color.primary : Color.secondary.opacity(0.45)))
-                .frame(width: 34, height: 34)
+                .foregroundStyle(isPicked ? Color.white : (inMonth ? Color.primary : Color.secondary.opacity(0.45)))
+                .frame(width: 32, height: 32)
                 .background {
                     if isPicked {
                         Circle().fill(Color.brand)
@@ -172,10 +197,16 @@ struct QuickStartView: View {
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: 班次
+    // MARK: 班次 + 第几个
 
     private var shiftPicker: some View {
-        Picker("班次", selection: $kind) {
+        Picker("班次", selection: Binding(
+            get: { kind },
+            set: { newValue in
+                kind = newValue
+                patternIndex = nil
+            }
+        )) {
             ForEach(ShiftKind.allCases) { item in
                 Text(plan.shiftDef(item).name).tag(item)
             }
@@ -183,72 +214,154 @@ struct QuickStartView: View {
         .pickerStyle(.segmented)
     }
 
-    @ViewBuilder
-    private var kindHint: some View {
-        if anchor == nil {
-            Text("「\(plan.patternName)」这一轮里没有「\(plan.shiftDef(kind).name)」，这天会作为单日调整，后面的日子仍按原规律。想整段都换，点右上「换一个」选含这个班的规律（五班三倒 / 四班三倒）。")
-                .font(.system(size: 11.5))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
-                .multilineTextAlignment(.leading)
-        } else if let anchor {
-            Text("已自动对齐：循环起点 \(CalendarX.md(anchor)) \(CalendarX.week(anchor))")
-                .font(.system(size: 11.5))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
-        }
+    /// 这个班次在循环里出现的位置（早/中/夜各两个，休息四个）
+    private var occurrenceIndices: [Int] {
+        plan.pattern.indices.filter { plan.pattern[$0] == kind }
     }
 
-    // MARK: 预览
+    private var selectedIndex: Int? {
+        if let patternIndex, occurrenceIndices.contains(patternIndex) { return patternIndex }
+        return occurrenceIndices.first
+    }
 
-    private var previewCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if let anchor {
-                HStack(spacing: 4) {
-                    ForEach(0..<8, id: \.self) { offset in
-                        previewColumn(offset: offset, anchor: anchor)
-                    }
-                }
-            } else {
-                HStack(spacing: 6) {
-                    ForEach(0..<8, id: \.self) { offset in
-                        let day = CalendarX.addDays(picked, offset)
-                        let isPickedDay = offset == 0
-                        VStack(spacing: 4) {
-                            Text(isPickedDay ? "这天" : CalendarX.weekShort[CalendarX.weekdayIndex(day)])
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(.tertiary)
-                            ShiftTag(def: plan.shiftDef(isPickedDay ? kind : plan.shift(on: day)))
-                                .opacity(isPickedDay ? 1 : 0.45)
+    private func ordinal(_ index: Int) -> Int {
+        (occurrenceIndices.firstIndex(of: index) ?? 0) + 1
+    }
+
+    @ViewBuilder
+    private var occurrencePicker: some View {
+        if occurrenceIndices.count > 1 {
+            HStack(spacing: 8) {
+                ForEach(occurrenceIndices, id: \.self) { index in
+                    Button {
+                        patternIndex = index
+                    } label: {
+                        VStack(spacing: 1) {
+                            Text("第 \(ordinal(index)) 个\(plan.shiftDef(kind).short)")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text("循环第 \(index + 1) 天")
+                                .font(.system(size: 9))
+                                .opacity(0.7)
                         }
                         .frame(maxWidth: .infinity)
+                        .frame(height: 36)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(index == selectedIndex ? Color.brand : Color.restGray))
+                        .foregroundStyle(index == selectedIndex ? Color.white : Color.secondary)
                     }
+                    .buttonStyle(.plain)
                 }
             }
-
-            Text("之后按「\(plan.patternName)」一直循环下去，不用再逐天设置。个别的换班、请假，点月历里那天单独改。")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
         }
-        .card()
     }
 
-    private func previewColumn(offset: Int, anchor: Date) -> some View {
-        let day = CalendarX.addDays(picked, offset)
-        let simulated = plan.shiftPreview(on: day, anchor: anchor)
-        return VStack(spacing: 4) {
-            Text(offset == 0 ? "这天" : CalendarX.weekShort[CalendarX.weekdayIndex(day)])
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.tertiary)
-            ShiftTag(def: plan.shiftDef(simulated))
+    // MARK: 逐天编辑
+
+    private var anchor: Date? {
+        guard let index = selectedIndex else { return nil }
+        return plan.anchorAligned(to: picked, patternIndex: index)
+    }
+
+    private var editDays: [Date] {
+        (0..<7).map { CalendarX.addDays(picked, $0) }
+    }
+
+    private func baseKind(on day: Date) -> ShiftKind {
+        if let anchor { return plan.shiftPreview(on: day, anchor: anchor) }
+        return plan.shift(on: day)
+    }
+
+    private func shownKind(on day: Date) -> ShiftKind {
+        dayEdits[CalendarX.isoKey(day)] ?? baseKind(on: day)
+    }
+
+    private func setKind(_ newKind: ShiftKind, on day: Date) {
+        let key = CalendarX.isoKey(day)
+        if newKind == baseKind(on: day) {
+            dayEdits.removeValue(forKey: key)
+        } else {
+            dayEdits[key] = newKind
         }
-        .frame(maxWidth: .infinity)
+    }
+
+    private var editRows: some View {
+        VStack(spacing: 0) {
+            ForEach(editDays, id: \.self) { day in
+                HStack(spacing: 8) {
+                    Text("\(CalendarX.md(day).replacingOccurrences(of: "月", with: "/").replacingOccurrences(of: "日", with: "")) \(CalendarX.weekShort[CalendarX.weekdayIndex(day)])")
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(dayEdits[CalendarX.isoKey(day)] != nil ? Color.brand : Color.secondary)
+                        .frame(width: 72, alignment: .leading)
+
+                    ForEach(ShiftKind.allCases) { item in
+                        Button {
+                            setKind(item, on: day)
+                        } label: {
+                            Text(plan.shiftDef(item).short)
+                                .font(.system(size: 11, weight: .bold))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 26)
+                                .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(chipBackground(item, on: day)))
+                                .foregroundStyle(chipForeground(item, on: day))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 3)
+
+                if day != editDays.last {
+                    Divider()
+                }
+            }
+        }
+        .card(padding: 10)
+    }
+
+    private func chipBackground(_ item: ShiftKind, on day: Date) -> Color {
+        guard item == shownKind(on: day) else { return Color.restGray }
+        let def = plan.shiftDef(item)
+        return def.isRest ? Color.restGray : Color(hex: def.colorHex)
+    }
+
+    private func chipForeground(_ item: ShiftKind, on day: Date) -> Color {
+        guard item == shownKind(on: day) else { return Color.secondary }
+        return plan.shiftDef(item).isRest ? Color.secondary : Color.white
+    }
+
+    @ViewBuilder
+    private var hint: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let anchor {
+                Text("已对齐：循环起点 \(CalendarX.md(anchor)) \(CalendarX.week(anchor))")
+            } else {
+                Text("「\(plan.patternName)」里没有「\(plan.shiftDef(kind).name)」，这天会作为单日调整")
+            }
+            if !dayEdits.isEmpty {
+                Button("清除逐天修改") { dayEdits = [:] }
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.brand)
+            }
+        }
+        .font(.system(size: 11.5))
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 4)
     }
 
     // MARK: 应用
 
     private func apply() {
-        store.refreshFromQuickStart(on: picked, kind: kind)
+        let key = CalendarX.isoKey(picked)
+        if let index = selectedIndex, let aligned = plan.anchorAligned(to: picked, patternIndex: index) {
+            store.plan.anchor = aligned
+            store.plan.overrides.removeValue(forKey: key)
+        } else {
+            store.plan.overrides[key] = kind
+        }
+        for (dayKey, value) in dayEdits {
+            store.plan.overrides[dayKey] = value
+        }
         dismiss()
     }
 }

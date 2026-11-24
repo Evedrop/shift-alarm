@@ -149,6 +149,15 @@ struct Plan: Codable, Equatable {
         return CalendarX.addDays(CalendarX.startOfDay(date), -offset)
     }
 
+    /// 让某一天正好等于循环里「第 index 个」位置所需的循环起点
+    func anchorAligned(to date: Date, patternIndex index: Int, crew: Int? = nil) -> Date? {
+        guard index >= 0, index < pattern.count else { return nil }
+        let target = crew ?? myCrew
+        let length = pattern.count
+        let offset = ((index - target * crewStride) % length + length) % length
+        return CalendarX.addDays(CalendarX.startOfDay(date), -offset)
+    }
+
     /// 用指定循环起点试算某天的班（不动真实数据，给预览用）
     func shiftPreview(on date: Date, anchor: Date, crew: Int? = nil) -> ShiftKind {
         guard !pattern.isEmpty else { return .rest }

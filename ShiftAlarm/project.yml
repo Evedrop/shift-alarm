@@ -10,8 +10,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.2.2"
-    CURRENT_PROJECT_VERSION: "5"
+    MARKETING_VERSION: "0.3.0"
+    CURRENT_PROJECT_VERSION: "6"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: ""
     ENABLE_USER_SCRIPT_SANDBOXING: YES
@@ -40,8 +40,8 @@ targets:
       path: Info.plist
       properties:
         CFBundleDisplayName: 班表闹钟
-        CFBundleShortVersionString: "0.2.2"
-        CFBundleVersion: "5"
+        CFBundleShortVersionString: "0.3.0"
+        CFBundleVersion: "6"
         UILaunchScreen: {}
         UIUserInterfaceStyle: Automatic
         UIRequiresFullScreen: true
