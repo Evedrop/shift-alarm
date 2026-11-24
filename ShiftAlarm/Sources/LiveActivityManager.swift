@@ -19,27 +19,27 @@ final class LiveActivityManager {
         let def = plan.shiftDef(kind)
 
         guard !def.isRest else {
-            Task { await end() }
+            Task { await endActivity() }
             return
         }
 
         let start = CalendarX.cal.date(byAdding: .minute, value: def.startMinute, to: today) ?? today
-        let end = CalendarX.cal.date(byAdding: .hour, value: def.hours, to: start) ?? start
+        let shiftEnd = CalendarX.cal.date(byAdding: .hour, value: def.hours, to: start) ?? start
 
         let state = ShiftActivityAttributes.ContentState(
             title: "\(def.name) \(CalendarX.timeLabel(def.startMinute))–\(CalendarX.timeLabel(def.startMinute + def.hours * 60))",
             shortName: def.short,
             colorHex: def.colorHex,
-            statusText: statusText(now: now, start: start, end: end),
-            endDate: end
+            statusText: statusText(now: now, start: start, end: shiftEnd),
+            endDate: shiftEnd
         )
         // 下班之后系统会自动收掉这条活动
-        let content = ActivityContent(state: state, staleDate: end)
+        let content = ActivityContent(state: state, staleDate: shiftEnd)
 
         Task { await upsert(today: today, content: content) }
     }
 
-    func end() async {
+    func endActivity() async {
         if let current {
             await current.end(nil, dismissalPolicy: .immediate)
         }
