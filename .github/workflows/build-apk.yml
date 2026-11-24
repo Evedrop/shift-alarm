@@ -21,8 +21,26 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: 准备 Android SDK
-        uses: android-actions/setup-android@v3
+      - name: 查看自带 Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          ls "$ANDROID_HOME/platforms" || true
+          ls "$ANDROID_HOME/build-tools" || true
+
+      - name: 准备好要用的 SDK 平台
+        run: |
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          BT="$(ls -1 "$SDK/cmdline-tools" 2>/dev/null | head -1)"
+          SM="$SDK/cmdline-tools/$BT/bin/sdkmanager"
+          if [ ! -x "$SM" ]; then SM="$(command -v sdkmanager || true)"; fi
+          if [ -d "$SDK/platforms/android-35" ]; then
+            echo "android-35 已存在"
+          elif [ -n "$SM" ]; then
+            yes | "$SM" --sdk_root="$SDK" "platforms;android-35" "build-tools;35.0.0" || true
+          else
+            echo "找不到 sdkmanager，直接尝试编译"
+          fi
 
       - name: 准备 Gradle
         uses: gradle/actions/setup-gradle@v4
