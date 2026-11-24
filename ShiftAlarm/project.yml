@@ -10,19 +10,23 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.1.1"
-    CURRENT_PROJECT_VERSION: "2"
+    MARKETING_VERSION: "0.2.0"
+    CURRENT_PROJECT_VERSION: "3"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: ""
     ENABLE_USER_SCRIPT_SANDBOXING: YES
 
 targets:
+  # ── 主 App ──────────────────────────────────────────────
   ShiftAlarm:
     type: application
     platform: iOS
     deploymentTarget: "26.0"
     sources:
       - path: Sources
+      - path: Shared
+    dependencies:
+      - target: ShiftAlarmWidget
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.ShiftAlarm
@@ -36,8 +40,8 @@ targets:
       path: Info.plist
       properties:
         CFBundleDisplayName: 班表闹钟
-        CFBundleShortVersionString: "0.1.1"
-        CFBundleVersion: "2"
+        CFBundleShortVersionString: "0.2.0"
+        CFBundleVersion: "3"
         UILaunchScreen: {}
         UIUserInterfaceStyle: Automatic
         UIRequiresFullScreen: true
@@ -45,6 +49,33 @@ targets:
           - UIInterfaceOrientationPortrait
         # AlarmKit 必须声明用途，否则 requestAuthorization 会被系统拒绝
         NSAlarmKitUsageDescription: 班表闹钟会在班次开始前用系统闹钟提醒你，手机静音或开启专注模式时也能响铃。
+        # 灵动岛 / 锁屏实时活动
+        NSSupportsLiveActivities: true
+        # 写日历
+        NSCalendarsWriteOnlyAccessUsageDescription: 班表闹钟会把未来 30 天的班次写进「班表闹钟」日历，方便你在日历里查看。
+        NSCalendarsUsageDescription: 班表闹钟需要日历权限来写入班次。
+
+  # ── Widget 扩展：锁屏卡片 + 灵动岛 ──────────────────────
+  ShiftAlarmWidget:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: Widget
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.ShiftAlarm.widget
+        PRODUCT_NAME: ShiftAlarmWidget
+        SKIP_INSTALL: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SWIFT_STRICT_CONCURRENCY: minimal
+    info:
+      path: Widget/Info.plist
+      properties:
+        CFBundleDisplayName: 班表闹钟
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
 schemes:
   ShiftAlarm:

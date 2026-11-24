@@ -202,7 +202,8 @@ final class AlarmService: ObservableObject {
             countdownDuration: nil,
             schedule: .fixed(fire),
             attributes: attributes,
-            stopIntent: nil,
+            // 按下「停止」的那一刻，把今天的班次留到锁屏 / 灵动岛上
+            stopIntent: ShiftStopIntent(shiftDate: CalendarX.isoKey(fire)),
             secondaryIntent: nil,
             sound: .default
         )

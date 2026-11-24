@@ -5,6 +5,9 @@ import SwiftUI
 /// 改任何字段都会自动落盘。以后要接 iCloud 再换成 SwiftData 也只需要替换这个类。
 @MainActor
 final class PlanStore: ObservableObject {
+    /// 供 AppIntent（闹钟停止）等非视图代码访问
+    static let shared = PlanStore()
+
     @Published var plan: Plan {
         didSet { persist() }
     }

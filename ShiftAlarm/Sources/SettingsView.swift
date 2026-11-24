@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var store: PlanStore
     @ObservedObject private var service = AlarmService.shared
+    @ObservedObject private var calendar = CalendarSync.shared
     @Environment(\.dismiss) private var dismiss
 
     @State private var confirmReset = false
@@ -15,6 +16,24 @@ struct SettingsView: View {
                         ShiftSettingsView()
                             .environmentObject(store)
                     }
+                }
+
+                Section("日历") {
+                    Button {
+                        Task { await CalendarSync.shared.sync(plan: store.plan) }
+                    } label: {
+                        HStack {
+                            Text(calendar.isSyncing ? "正在写入…" : "把未来 30 天班表写进系统日历")
+                            Spacer()
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .foregroundStyle(Color.brand)
+                        }
+                    }
+                    .disabled(calendar.isSyncing)
+
+                    Text(calendar.status)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section("系统闹钟") {
