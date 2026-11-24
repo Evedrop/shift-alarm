@@ -19,11 +19,26 @@ struct SettingsView: View {
                 }
 
                 Section("日历") {
+                    if calendar.available.isEmpty {
+                        Button("加载我手机里的日历") {
+                            Task { await calendar.prepare() }
+                        }
+                    } else {
+                        Picker("写入哪个日历", selection: Binding(
+                            get: { calendar.selectedID ?? calendar.available.first?.id ?? "" },
+                            set: { calendar.selectedID = $0 }
+                        )) {
+                            ForEach(calendar.available) { choice in
+                                Text(choice.title).tag(choice.id)
+                            }
+                        }
+                    }
+
                     Button {
-                        Task { await CalendarSync.shared.sync(plan: store.plan) }
+                        Task { await calendar.sync(plan: store.plan) }
                     } label: {
                         HStack {
-                            Text(calendar.isSyncing ? "正在写入…" : "把未来 30 天班表写进系统日历")
+                            Text(calendar.isSyncing ? "正在写入…" : "写入未来 30 天班表")
                             Spacer()
                             Image(systemName: "arrow.triangle.2.circlepath")
                                 .foregroundStyle(Color.brand)
@@ -79,6 +94,9 @@ struct SettingsView: View {
             }
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
+            .task {
+                await calendar.prepare()
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") { dismiss() }

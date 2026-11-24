@@ -10,8 +10,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.2.0"
-    CURRENT_PROJECT_VERSION: "3"
+    MARKETING_VERSION: "0.2.1"
+    CURRENT_PROJECT_VERSION: "4"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: ""
     ENABLE_USER_SCRIPT_SANDBOXING: YES
@@ -40,8 +40,8 @@ targets:
       path: Info.plist
       properties:
         CFBundleDisplayName: 班表闹钟
-        CFBundleShortVersionString: "0.2.0"
-        CFBundleVersion: "3"
+        CFBundleShortVersionString: "0.2.1"
+        CFBundleVersion: "4"
         UILaunchScreen: {}
         UIUserInterfaceStyle: Automatic
         UIRequiresFullScreen: true
@@ -52,7 +52,8 @@ targets:
         # 灵动岛 / 锁屏实时活动
         NSSupportsLiveActivities: true
         # 写日历
-        NSCalendarsWriteOnlyAccessUsageDescription: 班表闹钟会把未来 30 天的班次写进「班表闹钟」日历，方便你在日历里查看。
+        NSCalendarsWriteOnlyAccessUsageDescription: 班表闹钟会把未来 30 天的班次写进你选的那个日历，方便你在日历里查看。
+        NSCalendarsFullAccessUsageDescription: 班表闹钟需要读取你选的日历，才能只清理自己写过的班次、不碰你手工建的事件。
         NSCalendarsUsageDescription: 班表闹钟需要日历权限来写入班次。
 
   # ── Widget 扩展：锁屏卡片 + 灵动岛 ──────────────────────

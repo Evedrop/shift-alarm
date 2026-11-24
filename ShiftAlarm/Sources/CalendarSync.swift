@@ -1,16 +1,60 @@
 import EventKit
 import Foundation
 
-/// 把班表写进系统日历（写完就能在「日历」App 里看到，也能给家人共享）。
+struct CalendarChoice: Identifiable, Hashable {
+    let id: String
+    let title: String
+}
+
+/// 把班表写进「你自己选的」那个日历，不新建日历。
+/// 只清理本 App 之前写进去的事件，绝不动你手工建的日程。
 @MainActor
 final class CalendarSync: ObservableObject {
     static let shared = CalendarSync()
 
+    @Published private(set) var available: [CalendarChoice] = []
     @Published private(set) var status = "还没同步过"
     @Published private(set) var isSyncing = false
 
+    /// 目标日历（记在本地，下次自动沿用）
+    @Published var selectedID: String? {
+        didSet { UserDefaults.standard.set(selectedID, forKey: Self.targetKey) }
+    }
+
     private let store = EKEventStore()
-    private let calendarTitle = "班表闹钟"
+    private static let targetKey = "shiftAlarm.calendarTarget"
+    private static let idsKey = "shiftAlarm.calendarEventIDs"
+    private let marker = "由「班表闹钟」自动生成"
+
+    private init() {
+        selectedID = UserDefaults.standard.string(forKey: Self.targetKey)
+    }
+
+    // MARK: 准备：授权 + 列出可写日历
+
+    func prepare() async {
+        guard await ensureAccess() else {
+            status = "没有日历权限：去「设置 › 班表闹钟 › 日历」打开"
+            return
+        }
+        reloadCalendars()
+        if available.isEmpty {
+            status = "系统里没有可写入的日历"
+        } else if selectedID == nil {
+            status = "选一个要写入的日历"
+        }
+    }
+
+    func reloadCalendars() {
+        guard EKEventStore.authorizationStatus(for: .event) != .notDetermined else { return }
+        let calendars = store.calendars(for: .event).filter { $0.allowsContentModifications }
+        available = calendars.map { CalendarChoice(id: $0.calendarIdentifier, title: $0.title) }
+        if selectedID == nil || !available.contains(where: { $0.id == selectedID }) {
+            selectedID = pickDefault(from: calendars)?.calendarIdentifier
+        }
+    }
+
+    // MARK: 写入
 
     func sync(plan: Plan, days: Int = 30) async {
         isSyncing = true
@@ -20,21 +64,31 @@ final class CalendarSync: ObservableObject {
             status = "没有日历权限：去「设置 › 班表闹钟 › 日历」打开"
             return
         }
-        guard let calendar = ensureCalendar() else {
-            status = "创建日历失败（可能是系统日历源不可用）"
+        reloadCalendars()
+        guard let id = selectedID, let calendar = store.calendar(withIdentifier: id) else {
+            status = "先选一个要写入的日历"
             return
         }
 
         let from = CalendarX.startOfDay(Date())
         let to = CalendarX.addDays(from, days)
 
-        // 只清理我们自己那个日历里的事件
-        let predicate = store.predicateForEvents(withStart: from, end: to, calendars: [calendar])
-        for event in store.events(matching: predicate) {
-            try? store.remove(event, span: .thisEvent, commit: false)
+        // 1) 只删自己写过的：先按记录的 id，再按 notes 标记兜底
+        for eventID in (UserDefaults.standard.stringArray(forKey: Self.idsKey) ?? []) {
+            if let old = store.event(withIdentifier: eventID) {
+                try? store.remove(old, span: .thisEvent, commit: false)
+            }
+        }
+        if EKEventStore.authorizationStatus(for: .event) == .fullAccess {
+            let predicate = store.predicateForEvents(withStart: from, end: to, calendars: [calendar])
+            for old in store.events(matching: predicate) where (old.notes ?? "").hasPrefix(marker) {
+                try? store.remove(old, span: .thisEvent, commit: false)
+            }
         }
 
+        // 2) 写新的
         var written = 0
+        var newIDs: [String] = []
         for offset in 0..<days {
             let day = CalendarX.addDays(from, offset)
             let def = plan.shiftDef(plan.shift(on: day))
@@ -48,52 +102,52 @@ final class CalendarSync: ObservableObject {
             event.title = "\(def.name) \(CalendarX.timeLabel(def.startMinute))–\(CalendarX.timeLabel(def.startMinute + def.hours * 60))"
             event.startDate = start
             event.endDate = end
-            event.notes = "由「班表闹钟」自动生成"
+            event.notes = marker
             event.availability = .busy
 
             do {
                 try store.save(event, span: .thisEvent, commit: false)
                 written += 1
+                if let identifier = event.eventIdentifier { newIDs.append(identifier) }
             } catch {
                 // 单条失败不影响其它
             }
         }
 
         try? store.commit()
-        status = "已写入 \(written) 个班次（未来 \(days) 天）"
+        UserDefaults.standard.set(newIDs, forKey: Self.idsKey)
+        status = "已写入 \(written) 个班次到「\(calendar.title)」（未来 \(days) 天）"
     }
 
-    // MARK: 权限与日历
+    // MARK: 内部
+
+    private func pickDefault(from calendars: [EKCalendar]) -> EKCalendar? {
+        if let matched = calendars.first(where: { $0.title.contains("排班") || $0.title.contains("班表") }) {
+            return matched
+        }
+        if let def = store.defaultCalendarForNewEvents, def.allowsContentModifications {
+            return def
+        }
+        return calendars.first
+    }
 
     private func ensureAccess() async -> Bool {
         switch EKEventStore.authorizationStatus(for: .event) {
-        case .fullAccess, .writeOnly:
+        case .fullAccess:
+            return true
+        case .writeOnly:
             return true
         case .notDetermined:
+            // 优先要完整权限（才能列出日历并清理自己写过的），用户只给「仅添加」也能用
             do {
-                return try await store.requestWriteOnlyAccessToEvents()
+                _ = try await store.requestFullAccessToEvents()
             } catch {
                 return false
             }
+            let after = EKEventStore.authorizationStatus(for: .event)
+            return after == .fullAccess || after == .writeOnly
         default:
             return false
-        }
-    }
-
-    private func ensureCalendar() -> EKCalendar? {
-        if let existing = store.calendars(for: .event).first(where: { $0.title == calendarTitle }) {
-            return existing
-        }
-        let calendar = EKCalendar(for: .event, eventStore: store)
-        calendar.title = calendarTitle
-        calendar.source = store.defaultCalendarForNewEvents?.source
-            ?? store.sources.first { $0.sourceType == .local }
-        guard calendar.source != nil else { return nil }
-        do {
-            try store.saveCalendar(calendar, commit: true)
-            return calendar
-        } catch {
-            return nil
         }
     }
 }
