@@ -26,6 +26,14 @@ final class LiveActivityManager {
         let start = CalendarX.cal.date(byAdding: .minute, value: def.startMinute, to: today) ?? today
         let shiftEnd = CalendarX.cal.date(byAdding: .hour, value: def.hours, to: start) ?? start
 
+        // 只在「班次开始前 3 小时 ~ 下班」这段有意义的时间里显示，
+        // 深夜打开 App 不会再冒出「已下班」的卡片
+        let windowStart = start.addingTimeInterval(-3 * 3600)
+        guard now >= windowStart, now < shiftEnd else {
+            Task { await endActivity() }
+            return
+        }
+
         let state = ShiftActivityAttributes.ContentState(
             title: "\(def.name) \(CalendarX.timeLabel(def.startMinute))–\(CalendarX.timeLabel(def.startMinute + def.hours * 60))",
             shortName: def.short,
