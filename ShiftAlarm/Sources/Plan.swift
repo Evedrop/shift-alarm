@@ -140,6 +140,24 @@ struct Plan: Codable, Equatable {
         overrides[CalendarX.isoKey(date)] != nil
     }
 
+    /// 让某一天正好是某个班次所需的循环起点（不改当前 anchor，只算出来）
+    func alignedAnchor(for date: Date, kind: ShiftKind, crew: Int? = nil) -> Date? {
+        guard !pattern.isEmpty, let index = pattern.firstIndex(of: kind) else { return nil }
+        let target = crew ?? myCrew
+        let length = pattern.count
+        let offset = ((index - target * crewStride) % length + length) % length
+        return CalendarX.addDays(CalendarX.startOfDay(date), -offset)
+    }
+
+    /// 用指定循环起点试算某天的班（不动真实数据，给预览用）
+    func shiftPreview(on date: Date, anchor: Date, crew: Int? = nil) -> ShiftKind {
+        guard !pattern.isEmpty else { return .rest }
+        let target = crew ?? myCrew
+        let n = CalendarX.daysBetween(anchor, date) + target * crewStride
+        let i = ((n % pattern.count) + pattern.count) % pattern.count
+        return pattern[i]
+    }
+
     // MARK: 闹钟时间
 
     /// 某天班次对应的响铃时刻（可能落在前一天晚上）

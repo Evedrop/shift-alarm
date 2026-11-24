@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RulesTab: View {
     @EnvironmentObject private var store: PlanStore
+    @State private var showQuickStart = false
 
     private var plan: Plan { store.plan }
 
@@ -9,6 +10,7 @@ struct RulesTab: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 14) {
+                    quickStartCard
                     patternCard
                     SectionHeader(title: "预设规律", trailing: "点一下立即套用")
                     presetsGrid
@@ -25,7 +27,44 @@ struct RulesTab: View {
             }
             .background(Color.pageBackground)
             .navigationTitle("排班规律")
+            .sheet(isPresented: $showQuickStart) {
+                QuickStartView()
+                    .environmentObject(store)
+            }
         }
+    }
+
+    // MARK: 快速排班入口
+
+    private var quickStartCard: some View {
+        Button {
+            showQuickStart = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "wand.and.stars")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color.brand)
+                    .frame(width: 38, height: 38)
+                    .background(Circle().fill(Color.brand.opacity(0.12)))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("快速排班")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color.primary)
+                    Text("点一天 → 选那天的班 → 后面自动往下排")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .card()
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: 当前规律

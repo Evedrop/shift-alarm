@@ -77,6 +77,55 @@ final class AlarmService: ObservableObject {
         }
     }
 
+    // MARK: 试验闹钟（用来确认真机上系统闹钟能不能响）
+
+    @Published private(set) var testAlarmID: UUID?
+    @Published private(set) var testFireDate: Date?
+
+    /// 排一个 N 秒后响的一次性闹钟。不写进 plan.booked，所以不会被排班同步撤掉。
+    func scheduleTestAlarm(in seconds: TimeInterval) async {
+        if auth != .granted { await requestAuth() }
+        guard auth == .granted else {
+            lastError = "还没拿到系统闹钟权限，先去「设置 › 班表闹钟 › 闹钟」里打开"
+            return
+        }
+        await cancelTestAlarm()
+
+        let id = UUID()
+        let fire = Date().addingTimeInterval(seconds)
+        do {
+            try await scheduleRaw(
+                id: id,
+                fire: fire,
+                title: "试验闹钟 · \(Int(seconds)) 秒到了",
+                tint: Color.brand
+            )
+            testAlarmID = id
+            testFireDate = fire
+            lastError = nil
+            // 响过之后把按钮状态收回来
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64((seconds + 15) * 1_000_000_000))
+                await MainActor.run {
+                    if self?.testAlarmID == id {
+                        self?.testAlarmID = nil
+                        self?.testFireDate = nil
+                    }
+                }
+            }
+        } catch {
+            lastError = "试验闹钟排程失败：\(error.localizedDescription)"
+        }
+    }
+
+    func cancelTestAlarm() async {
+        if let id = testAlarmID {
+            try? await manager.cancel(id: id)
+        }
+        testAlarmID = nil
+        testFireDate = nil
+    }
+
     // MARK: 把 Plan 里未来 14 天的闹钟同步进系统
 
     /// 返回新的「key -> AlarmKit id」映射，调用方写回 plan.booked。
@@ -120,17 +169,22 @@ final class AlarmService: ObservableObject {
 
     private func schedule(alarm: PlannedAlarm, plan: Plan, id: UUID) async throws {
         let def = plan.shiftDef(alarm.kind)
+        try await scheduleRaw(
+            id: id,
+            fire: alarm.fireDate,
+            title: "\(def.name) \(CalendarX.timeLabel(def.startMinute)) 开始",
+            tint: Color(hex: def.colorHex)
+        )
+    }
 
-        let when = Alarm.Schedule.fixed(alarm.fireDate)
-
+    /// 所有闹钟都走这里：一个 fixed 时刻 + 一个停止按钮
+    private func scheduleRaw(id: UUID, fire: Date, title: String, tint: Color) async throws {
         // iOS 26.1 才有无 stopButton 的新初始化方法；这里用 26.0 就有的旧方法（仅弃用警告），
         // 保证 iOS 26.0 的机器也能装
-        let title = LocalizedStringResource(
-            stringLiteral: "\(def.name) \(CalendarX.timeLabel(def.startMinute)) 开始"
-        )
+        let resource = LocalizedStringResource(stringLiteral: title)
         let stopButton = AlarmButton(text: "停止", textColor: .white, systemImageName: "stop.fill")
         let alert = AlarmPresentation.Alert(
-            title: title,
+            title: resource,
             stopButton: stopButton,
             secondaryButton: nil,
             secondaryButtonBehavior: nil
@@ -139,14 +193,14 @@ final class AlarmService: ObservableObject {
         // 显式写出泛型参数，避免推断失败
         let attributes = AlarmAttributes<ShiftAlarmMetadata>(
             presentation: AlarmPresentation(alert: alert),
-            metadata: ShiftAlarmMetadata(shiftName: def.name,
-                                         shiftDate: CalendarX.isoKey(alarm.shiftDate)),
-            tintColor: Color(hex: def.colorHex)
+            metadata: ShiftAlarmMetadata(shiftName: title,
+                                         shiftDate: CalendarX.isoKey(fire)),
+            tintColor: tint
         )
 
         let configuration = AlarmManager.AlarmConfiguration<ShiftAlarmMetadata>(
             countdownDuration: nil,
-            schedule: when,
+            schedule: .fixed(fire),
             attributes: attributes,
             stopIntent: nil,
             secondaryIntent: nil,

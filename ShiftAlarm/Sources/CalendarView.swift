@@ -1,10 +1,5 @@
 import SwiftUI
 
-struct DayPick: Identifiable {
-    let id: String
-    let date: Date
-}
-
 struct MonthCell: Identifiable {
     let id: String
     let date: Date
@@ -16,8 +11,21 @@ struct MonthCell: Identifiable {
 struct CalendarTab: View {
     @EnvironmentObject private var store: PlanStore
     @State private var month = CalendarX.startOfMonth(Date())
-    @State private var picked: DayPick?
-    @State private var showSettings = false
+    @State private var route: SheetRoute?
+
+    private enum SheetRoute: Identifiable {
+        case day(Date)
+        case settings
+        case quickStart
+
+        var id: String {
+            switch self {
+            case .day(let date): return "day-\(CalendarX.isoKey(date))"
+            case .settings: return "settings"
+            case .quickStart: return "quickStart"
+            }
+        }
+    }
 
     private var plan: Plan { store.plan }
     private var today: Date { CalendarX.startOfDay(Date()) }
@@ -44,19 +52,27 @@ struct CalendarTab: View {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button("今天") { month = CalendarX.startOfMonth(today) }
                         .font(.subheadline.weight(.semibold))
-                    Button { showSettings = true } label: {
+                    Button { route = .quickStart } label: {
+                        Image(systemName: "wand.and.stars")
+                    }
+                    Button { route = .settings } label: {
                         Image(systemName: "slider.horizontal.3")
                     }
                 }
             }
-            .sheet(item: $picked) { pick in
-                DayDetailView(date: pick.date)
-                    .environmentObject(store)
+            .sheet(item: $route) { destination in
+                switch destination {
+                case .day(let date):
+                    DayDetailView(date: date)
+                        .environmentObject(store)
+                case .settings:
+                    SettingsView()
+                        .environmentObject(store)
+                case .quickStart:
+                    QuickStartView()
+                        .environmentObject(store)
+                }
             }
-        }
-        .sheet(isPresented: $showSettings) {
-            SettingsView()
-                .environmentObject(store)
         }
     }
 
@@ -97,7 +113,7 @@ struct CalendarTab: View {
             LazyVGrid(columns: columns, spacing: 4) {
                 ForEach(cells) { cell in
                     Button {
-                        picked = DayPick(id: cell.id, date: cell.date)
+                        route = .day(cell.date)
                     } label: {
                         DayCellView(
                             date: cell.date,

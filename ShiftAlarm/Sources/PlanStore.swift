@@ -94,6 +94,18 @@ final class PlanStore: ObservableObject {
         if plan.myCrew >= plan.crews { plan.myCrew = 0 }
     }
 
+    func refreshFromQuickStart(on date: Date, kind: ShiftKind, preset: Preset? = nil) {
+        if let preset { apply(preset: preset) }
+        let key = CalendarX.isoKey(date)
+        if let anchor = plan.alignedAnchor(for: date, kind: kind) {
+            plan.anchor = anchor
+            plan.overrides.removeValue(forKey: key)
+        } else {
+            // 这套规律里没有这个班次（比如做二休二里没有夜班）→ 那天单独改
+            plan.overrides[key] = kind
+        }
+    }
+
     func resetAll() {
         plan = .standard
     }

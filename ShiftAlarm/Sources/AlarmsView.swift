@@ -13,6 +13,7 @@ struct AlarmsTab: View {
                 VStack(spacing: 14) {
                     heroCard
                     authCard
+                    testCard
                     SectionHeader(title: "接下来的闹钟", trailing: "共 \(upcoming.count) 个")
                     listCard
                     Text("周期轮班不是「每周重复」，所以实现上把未来 14 天展开成一批一次性系统闹钟；增删班次或改时间后会自动重排。")
@@ -133,6 +134,68 @@ struct AlarmsTab: View {
         case .denied: return "已拒绝，闹钟不会响；请到系统设置里打开"
         case .unknown: return "未授权，系统闹钟不会响铃"
         }
+    }
+
+    // MARK: 试验闹钟
+
+    private var testCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: "waveform.path.ecg")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Color.brand)
+                    .frame(width: 34, height: 34)
+                    .background(Circle().fill(Color.brand.opacity(0.12)))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("试验闹钟")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text(testHint)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                Spacer()
+
+                Button(service.testAlarmID == nil ? "试一下" : "取消") {
+                    Task {
+                        if service.testAlarmID == nil {
+                            await service.scheduleTestAlarm(in: 20)
+                        } else {
+                            await service.cancelTestAlarm()
+                        }
+                    }
+                }
+                .font(.system(size: 12.5, weight: .semibold))
+                .padding(.horizontal, 13)
+                .padding(.vertical, 7)
+                .background(Capsule().fill(service.testAlarmID == nil ? Color.brand : Color.restGray))
+                .foregroundStyle(service.testAlarmID == nil ? Color.white : Color.primary)
+                .buttonStyle(.plain)
+            }
+
+            if let fire = service.testFireDate, service.testAlarmID != nil {
+                HStack(spacing: 6) {
+                    Text("锁屏也会响 · 现在把手机锁上试")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(timerInterval: Date()...max(fire, Date().addingTimeInterval(1)), countsDown: true)
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(Color.brand)
+                }
+            }
+        }
+        .card()
+    }
+
+    private var testHint: String {
+        if service.testAlarmID != nil {
+            return "已排好，20 秒后响 —— 现在锁屏，等它叫"
+        }
+        return "点一下，20 秒后由系统闹钟叫你。用来确认免费签名下闹钟真的能响"
     }
 
     private var listCard: some View {
