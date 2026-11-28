@@ -4,6 +4,7 @@ struct SettingsView: View {
     @EnvironmentObject private var store: PlanStore
     @ObservedObject private var service = AlarmService.shared
     @ObservedObject private var calendar = CalendarSync.shared
+    @ObservedObject private var watch = SigningWatch.shared
     @Environment(\.dismiss) private var dismiss
 
     @State private var confirmReset = false
@@ -68,6 +69,8 @@ struct SettingsView: View {
                     }
                 }
 
+                signingSection
+
                 Section("数据") {
                     HStack {
                         Text("已排入系统")
@@ -84,7 +87,7 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Text("班表闹钟 v0.1")
+                    Text(versionText)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     Text("数据存在本机，换手机不会同步。")
@@ -96,6 +99,7 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .task {
                 await calendar.prepare()
+                await watch.reschedule()
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -109,6 +113,82 @@ struct SettingsView: View {
                 Text("会清掉自定义规律、班组名称和手动改班。")
             }
         }
+    }
+
+    private var versionText: String {
+        let info = Bundle.main.infoDictionary
+        let short = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return "班表闹钟 v\(short) (\(build))"
+    }
+
+    // MARK: 签名
+
+    @ViewBuilder
+    private var signingSection: some View {
+        Section("签名与续签") {
+            if let profile = SigningInfo.shared {
+                HStack {
+                    Text("剩余")
+                    Spacer()
+                    Text(remainingText)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(remainingColor)
+                }
+                HStack {
+                    Text("到期时刻")
+                    Spacer()
+                    Text(SigningInfo.expiryLabel(profile.expires))
+                        .foregroundStyle(.secondary)
+                }
+                HStack {
+                    Text("有效期")
+                    Spacer()
+                    Text(profile.isFreeAccount
+                         ? "\(profile.durationDays) 天（免费 Apple ID）"
+                         : "\(profile.durationDays) 天")
+                        .foregroundStyle(.secondary)
+                }
+
+                if watch.enabled {
+                    Button("重新排掉签提醒") {
+                        Task { await watch.reschedule() }
+                    }
+                } else {
+                    Button("开启掉签提醒") {
+                        Task { await watch.enable() }
+                    }
+                }
+
+                if !watch.status.isEmpty {
+                    Text(watch.status)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                Text("到期后 App 会打不开，系统闹钟也跟着失效。用 SideStore 刷新一下就能续 7 天；想彻底不用管，就买 99 美元/年的开发者账号，有效期直接变 365 天。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("读不到 embedded.mobileprovision —— 说明这次不是用常规侧载器装的，算不出剩余天数。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var remainingText: String {
+        guard let hours = SigningInfo.hoursRemaining() else { return "未知" }
+        if hours <= 0 { return "已过期" }
+        if hours < 48 { return String(format: "%.0f 小时", hours) }
+        return "\(Int(hours / 24)) 天"
+    }
+
+    private var remainingColor: Color {
+        guard let hours = SigningInfo.hoursRemaining() else { return Color.secondary }
+        if hours <= 0 { return .red }
+        if hours <= 48 { return .orange }
+        return .green
     }
 
     private var authText: String {

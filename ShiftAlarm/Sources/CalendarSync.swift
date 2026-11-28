@@ -102,8 +102,13 @@ final class CalendarSync: ObservableObject {
             event.title = "\(def.name) \(CalendarX.timeLabel(def.startMinute))–\(CalendarX.timeLabel(def.startMinute + def.hours * 60))"
             event.startDate = start
             event.endDate = end
-            event.notes = marker
+            event.notes = "\(marker)（提前 \(def.leadMinutes) 分钟提醒）"
             event.availability = .busy
+            // 掉签兜底：日历提醒由系统日历进程投递，App 过期也照响。
+            // 免费 Apple ID 只剩 7 天时，这条就是唯一还能叫醒你的东西。
+            if def.leadMinutes > 0 {
+                event.addAlarm(EKAlarm(relativeOffset: -TimeInterval(def.leadMinutes) * 60))
+            }
 
             do {
                 try store.save(event, span: .thisEvent, commit: false)
@@ -116,7 +121,7 @@ final class CalendarSync: ObservableObject {
 
         try? store.commit()
         UserDefaults.standard.set(newIDs, forKey: Self.idsKey)
-        status = "已写入 \(written) 个班次到「\(calendar.title)」（未来 \(days) 天）"
+        status = "已写入 \(written) 个班次到「\(calendar.title)」，每个都带提前提醒（未来 \(days) 天）"
     }
 
     // MARK: 内部
